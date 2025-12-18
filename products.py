@@ -25,19 +25,19 @@ class ProductSpec:
 
 # Definition of known products
 FULL_ARRAY = ProductSpec(
-    name="full_array",
+    name="full-array",
     suffix="_full_array.npz",
     kind=ProductKind.PER_INPUT,
 )
 
 GRID_POINTS = ProductSpec(
-    name="grid_points",
+    name="grid-points",
     suffix="_grid_points.npz",
     kind=ProductKind.PER_INPUT,
 )
 
 AVERAGED_GRID = ProductSpec(
-    name="averaged_grid",
+    name="averaged-grid",
     suffix="averaged_grid.npz",
     kind=ProductKind.SINGLETON,
 )

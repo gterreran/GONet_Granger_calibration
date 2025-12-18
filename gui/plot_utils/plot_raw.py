@@ -36,11 +36,8 @@ def _load_raw_channels(file_path: Path) -> Dict[str, np.ndarray]:
     return out
 
 
-
-
-
 def plot_raw_image(idx: int):
-    data_files = app.server.config["data_files"]["raw"]
+    data_files = app.server.config["data_files"]["raw-image"]
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
 

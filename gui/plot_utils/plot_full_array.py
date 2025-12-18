@@ -106,7 +106,7 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
     dash component
         html.Div containing the interactive plots.
     """
-    data_files = app.server.config.get("data_files")["full_array"] or []
+    data_files = app.server.config.get("data_files")["full-array"] or []
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
 

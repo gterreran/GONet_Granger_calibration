@@ -32,7 +32,7 @@ def launch_extraction_gui(data_files, outdir=None):
     app.server.config["output_dir"] = make_output_dir(outdir)
 
     # Make data_files available to the Dash server
-    app.server.config["data_files"] = {"raw": data_files}
+    app.server.config["data_files"] = {"raw-image": data_files}
     app.server.config["data_files"].update(discover_products(data_files, outdir))
 
     # Start Dash server in a background thread
