@@ -15,10 +15,11 @@ full_array_files_options = [{"label": f"{p.name}", "value": i}
 grid_points_files_options = [{"label": f"{p.name}", "value": i}
                             for i, p in enumerate(app.server.config["data_files"].get("grid-points", []))
                             ]
-
 averaged_grid_files = app.server.config.get("data_files").get("averaged-grid", None)
 
-ordered_steps = ["averaged-grid", "grid-points", "full-array", "raw-image"]
+calibrated_grid_files = app.server.config.get("data_files").get("calibrated-grid", None)
+
+ordered_steps = ["calibrated-grid", "averaged-grid", "grid-points", "full-array", "raw-image"]
 
 for step in ordered_steps:
     if app.server.config["data_files"].get(step):
@@ -65,7 +66,7 @@ layout = html.Div(
         dcc.Store(id="log-store"),
         dcc.Store(
             id="control-row-steps-store",
-            data=["raw-image", "full-array", "grid-points", "averaged-grid"],
+            data=["raw-image", "full-array", "grid-points", "averaged-grid", "calibrated-grid"],
         ),
         dcc.Store(id="active-step-store", data=first_available_step),
         dcc.Store(id="pipeline-run", data=False),
@@ -142,7 +143,31 @@ layout = html.Div(
                             ),
                             html.Div(
                                 id="averaged-grid-label",
-                                children= averaged_grid_files if averaged_grid_files else "No averaged grid yet",
+                                children= averaged_grid_files.name if averaged_grid_files else "No averaged grid yet",
+                                style={
+                                    "border": "1px solid #ccc",
+                                    "padding": "4px 6px",
+                                    "borderRadius": "4px",
+                                    "minHeight": "32px",
+                                    "display": "flex",
+                                    "alignItems": "center",
+                                },
+                            ),
+                            clickable = True if averaged_grid_files else False
+                        ),
+
+                        # Row 4 – Identify observed grid
+                        control_row(
+                            "calibrated-grid",
+                            html.Button(
+                                "4. Calibrated grid",
+                                id="btn-calibrated-grid",
+                                disabled=False if averaged_grid_files else True,
+                                n_clicks=0,
+                            ),
+                            html.Div(
+                                id="calibrated-grid-label",
+                                children= calibrated_grid_files.name if calibrated_grid_files else "No calibrated grid yet",
                                 style={
                                     "border": "1px solid #ccc",
                                     "padding": "4px 6px",
@@ -157,7 +182,7 @@ layout = html.Div(
 
                         html.Hr(),
 
-                        # Row 4 – Run all steps
+                        # Row 5 – Run all steps
                         html.Button(
                             "Run all steps",
                             id="btn-run-all",
@@ -167,7 +192,7 @@ layout = html.Div(
 
                         html.Hr(),
 
-                        # Row 5 – Exit
+                        # Row 6 – Exit
                         html.Button(
                             "Exit",
                             id="btn-exit",

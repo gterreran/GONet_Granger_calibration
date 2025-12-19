@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Iterable, Optional, List, Dict
+from typing import Iterable, Optional, List, Dict, Any
 
 
 class ProductKind(Enum):
@@ -42,7 +42,13 @@ AVERAGED_GRID = ProductSpec(
     kind=ProductKind.SINGLETON,
 )
 
-ALL_PRODUCTS = (FULL_ARRAY, GRID_POINTS, AVERAGED_GRID)
+CALIBRATED_GRID = ProductSpec(
+    name="calibrated-grid",
+    suffix="calibrated_grid.npz",
+    kind=ProductKind.SINGLETON,
+)
+
+ALL_PRODUCTS = (FULL_ARRAY, GRID_POINTS, AVERAGED_GRID, CALIBRATED_GRID)
 ALL_PRODUCTS = {
     p.name: p
     for p in ALL_PRODUCTS
@@ -73,15 +79,17 @@ def discover_products(
     """
     outdir = Path(outdir)
 
-    results: Dict[str, List[Path]] = {
-        name: [] for name in ALL_PRODUCTS
-    }
+    results: Dict[str, Any] = {}
+
+    for name in ALL_PRODUCTS.keys():
+        results[name] = [] if ALL_PRODUCTS[name].kind is ProductKind.PER_INPUT else None
+
 
     for product in ALL_PRODUCTS.values():
         if product.kind is ProductKind.SINGLETON:
             path = outdir / product.path()
             if path.exists():
-                results[product.name].append(path)
+                results[product.name] = path
 
         else:
             for infile in input_files:

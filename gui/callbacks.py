@@ -1,8 +1,9 @@
 from .server import app
-from ..pipeline import build_full_arrays_for_images#, run_full_pipeline, run_detection_on_full_arrays, compute_averaged_grid
+from ..pipeline import build_full_arrays_for_images, detect_grid_points_for_images, average_detected_grids_images #, run_full_pipeline, run_detection_on_full_arrays, compute_averaged_grid
 from dash import Input, Output, State, ctx, no_update, clientside_callback, ALL
 from .logging_utils import global_log_handler
-from .plot_utils import plot_raw_image, plot_full_array_product
+from .plot_utils import plot_raw_image, plot_full_array_product, plot_grid_array
+from ..products import ALL_PRODUCTS
 
 @app.callback(
     Output("plotting-area", "children"),
@@ -11,10 +12,11 @@ from .plot_utils import plot_raw_image, plot_full_array_product
     Input("raw-image-dropdown", "value"),
     Input("full-array-dropdown", "value"),
     Input("grid-points-dropdown", "value"),
+    Input("averaged-grid-label", "children"),
     #---------------------
     prevent_initial_call=True
 )
-def update_raw_image_dropdown(active_step, raw_idx, full_array_idx, grid_points_idx):
+def update_raw_image_dropdown(active_step, raw_idx, full_array_idx, grid_points_idx, averaged_grid_label):
     """
     Update the plotting area with the selected raw image.
 
@@ -28,23 +30,32 @@ def update_raw_image_dropdown(active_step, raw_idx, full_array_idx, grid_points_
     :class:`dash.development.base_component.Component`
         A Dash component to display the selected raw image.
     """
+    triggers = [t.split('.')[0] for t in ctx.inputs.keys()]
     trigger = ctx.triggered_id
     if trigger == "active-step-store":
-        trigger = f"{active_step}-dropdown"
+        if f"{active_step}-dropdown" in triggers:
+            trigger = f"{active_step}-dropdown"
+        else:
+            trigger = f"{active_step}-label"
     if trigger == "raw-image-dropdown":
         idx = raw_idx
         plotting_function = plot_raw_image
     elif trigger == "full-array-dropdown":
         idx = full_array_idx
         plotting_function = plot_full_array_product
-
+    elif trigger == "grid-points-dropdown":
+        idx = grid_points_idx
+        plotting_function = plot_grid_array
+    elif trigger == "averaged-grid-label":
+        idx = grid_points_idx
+        plotting_function = lambda idx: plot_grid_array(idx, average=True)
     img_div = plotting_function(idx)
 
     return img_div
 
 
 @app.callback(
-    Output("status-text", "children"),
+    Output("status-text", "children", allow_duplicate=True),
     Output("full-array-dropdown", "disabled"),
     Output("full-array-dropdown", "options"),
     Output("full-array-dropdown", "value"),
@@ -74,6 +85,71 @@ def run_full_array(_, pipeline_trigger, idx, n_detect):
         n_detect = no_update
 
     return status, disabled, options, value, disabled, n_detect, "full-array",disabled
+
+@app.callback(
+    Output("status-text", "children", allow_duplicate=True),
+    Output("grid-points-dropdown", "disabled"),
+    Output("grid-points-dropdown", "options"),
+    Output("grid-points-dropdown", "value"),
+    Output("btn-average-grid", "disabled"),
+    Output("btn-average-grid", "n_clicks"),
+    Output("active-step-store", "data", allow_duplicate=True),
+    Output({"type": "control-row", "step": "grid-points"}, "disable_n_clicks"),
+    #---------------------
+    Input("btn-detect-grid", "n_clicks"),
+    #---------------------
+    State("full-array-dropdown", "value"),
+    State("btn-average-grid", "n_clicks"),
+    State("pipeline-run", "data"),
+    #---------------------
+    prevent_initial_call=True
+)
+def run_grid_detection(_, idx, n_average_grid, pipeline_run):
+    output_list = detect_grid_points_for_images(app.server.config["data_files"]["raw-image"], app.server.config["output_dir"])
+    app.server.config["data_files"]["grid-points"] = output_list[:]
+    status = "Detected grid points for all full arrays."
+    options = [{"label": f.name, "value": i} for i, f in enumerate(output_list)]
+    value = idx
+    disabled = False
+    if pipeline_run == True:
+        n_average_grid += 1
+    else:
+        n_average_grid = no_update
+
+    return status, disabled, options, value, disabled, n_average_grid, "grid-points", disabled
+
+
+@app.callback(
+    Output("status-text", "children", allow_duplicate=True),
+    Output("averaged-grid-label", "children"),
+    Output("btn-calibrated-grid", "disabled"),
+    Output("btn-calibrated-grid", "n_clicks"),
+    Output("active-step-store", "data", allow_duplicate=True),
+    Output({"type": "control-row", "step": "averaged-grid"}, "disable_n_clicks"),
+    #---------------------
+    Input("btn-average-grid", "n_clicks"),
+    #---------------------
+    State("btn-average-grid", "n_clicks"),
+    State("pipeline-run", "data"),
+    #---------------------
+    prevent_initial_call=True
+)
+def run_average_grid(_, n_calibrated_grid, pipeline_run):
+    outfile = average_detected_grids_images(
+        app.server.config["data_files"]["grid-points"],
+        app.server.config["output_dir"],
+    )
+    app.server.config["data_files"]["averaged-grid"] = outfile
+    status = "Computed averaged grid."
+    label = ALL_PRODUCTS["averaged-grid"].path().name
+    disabled = False
+    if pipeline_run == True:
+        n_calibrated_grid += 1
+    else:
+        n_calibrated_grid = no_update
+
+    return status, label, disabled, n_calibrated_grid, "averaged-grid", disabled
+
 
 @app.callback(
     Output("run_full_pipeline_trigger", "children"),

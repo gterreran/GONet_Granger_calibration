@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 import numpy as np
 import plotly.graph_objects as go
@@ -113,9 +113,8 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
     if idx < 0 or idx >= len(data_files):
         return html.Div(f"Index out of range: {idx}", style={"color": "crimson"})
 
-    file_path = Path(data_files[idx])
+    npz_path = Path(data_files[idx])
 
-    npz_path = Path(file_path)
     if not npz_path.exists():
         return html.Div(f"Missing file: {npz_path}", style={"color": "crimson"})
 
