@@ -10,10 +10,10 @@ def run_app():
     configure_gui_logging()
 
     # Suppress Flask/Werkzeug/Dash startup logging
-    # logging.getLogger("werkzeug").setLevel(logging.ERROR)
-    # logging.getLogger("dash.dash").setLevel(logging.ERROR)
-    # import flask.cli
-    # flask.cli.show_server_banner = lambda *args, **kwargs: None
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    logging.getLogger("dash.dash").setLevel(logging.ERROR)
+    import flask.cli
+    flask.cli.show_server_banner = lambda *args, **kwargs: None
 
     # Set up the app layout and callbacks
     from .layout import layout

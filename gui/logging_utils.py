@@ -27,6 +27,7 @@ def configure_gui_logging(level=logging.INFO) -> None:
     Attach DashLogHandler to the full_array module logger (and optionally its parents),
     without modifying full_array.py.
     """
+
     global_log_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 
     # 1) Intercept the exact logger used by full_array.py
@@ -41,3 +42,8 @@ def configure_gui_logging(level=logging.INFO) -> None:
 
     # IMPORTANT: stop propagation to root (prevents terminal duplication)
     fa_logger.propagate = False
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    if global_log_handler not in root.handlers:
+        root.addHandler(global_log_handler)

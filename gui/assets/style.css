@@ -1,0 +1,18 @@
+.dropdown-label .Select-arrow-zone {
+  display: none !important;         /* hide the down arrow */
+}
+
+.dropdown-label .Select-input {
+  display: none !important;         /* hide typing area */
+}
+
+.dropdown-label.is-disabled .Select-placeholder,
+.dropdown-label.is-disabled .Select-value-label,
+.dropdown-real.is-disabled .Select-placeholder,
+.dropdown-real.is-disabled .Select-value-label {
+  color: #aaaaaa !important;
+}
+
+.dropdown-label .Select-control {
+  pointer-events: none;
+}

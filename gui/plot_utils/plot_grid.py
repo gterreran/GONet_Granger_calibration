@@ -123,7 +123,7 @@ def plot_grid_array(idx: int, *, zoom_half_size: int = 250, average: bool = Fals
         uirevision=f"full-array-{npz_path}",  # keep zoom while logs update
         dragmode="pan",
     )
-    print("here")
+
     return html.Div(
         [
             html.Div(

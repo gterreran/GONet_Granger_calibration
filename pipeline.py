@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import List
 import logging
 from GONet_Wizard.GONet_utils.src.gonet.analysis_utils.full_array import build_full_array # type: ignore
-from .products import ALL_PRODUCTS, ProductKind
+from .products import ALL_PRODUCTS
 from .detection import detect_grid_points, average_detected_grids
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def detect_grid_points_for_images(
     return grid_points_paths
 
 def average_detected_grids_images(
-    detection_paths: List[Path],
+    image_paths: List[Path],
     out_dir: Path,
 ) -> Path:
     """
@@ -89,7 +89,10 @@ def average_detected_grids_images(
     """
 
     out_path = out_dir / ALL_PRODUCTS["averaged-grid"].path()
-    print(out_path)
+    detection_paths = [
+        out_dir / ALL_PRODUCTS["grid-points"].path(input_file=img)
+        for img in image_paths
+    ]
     logger.info(f"[pipeline] Averaging detected grid points -> {out_path}")
     average_detected_grids(
         grid_npz_files = detection_paths,
