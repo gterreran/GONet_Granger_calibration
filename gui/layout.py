@@ -7,21 +7,6 @@ from . import ids
 from .steps import ORDERED_STEPS, StepSpec, STEPS, ENABLE_RULES, CLICKABLE_RULES
 from .data_index import file_list_for_step
 
-raw_files_options = [{"label": f"{p.name}", "value": i}
-                      for i, p in enumerate(app.server.config["data_files"]["raw-image"])
-                      ]
-
-full_array_files_options = [{"label": f"{p.name}", "value": i}
-                           for i, p in enumerate(app.server.config["data_files"].get("full-array", []))
-                           ]
-
-grid_points_files_options = [{"label": f"{p.name}", "value": i}
-                            for i, p in enumerate(app.server.config["data_files"].get("grid-points", []))
-                            ]
-averaged_grid_files = app.server.config.get("data_files").get("averaged-grid", None)
-
-calibrated_grid_files = app.server.config.get("data_files").get("calibrated-grid", None)
-
 first_available_step = "raw-image"
 for step in list(reversed(ORDERED_STEPS)):
     if app.server.config["data_files"].get(step):
@@ -107,101 +92,63 @@ for step in STEPS:
 layout = html.Div(
     [
         html.Div(id=ids.LOG_AUTOSCROLL_DUMMY, style={"display": "none"}),
-        # hidden stores for lists of files (to be filled by callbacks)
-        dcc.Store(
-            id=ids.STORE_CONTROL_STEPS,
-            data=ORDERED_STEPS,
-        ),
+
+        dcc.Store(id=ids.STORE_CONTROL_STEPS, data=ORDERED_STEPS),
         dcc.Store(id=ids.STORE_ACTIVE_STEP, data=first_available_step),
         dcc.Store(id=ids.STORE_RUN_STEP, data=None),
+        dcc.Store(id=ids.STORE_STEP_REQUEST, data=None),
+        dcc.Store(id=ids.STORE_STEP_RESULT, data=None),
+        dcc.Store(id=ids.STORE_SELECTED_STEP, data=None),
+
         dcc.Interval(id=ids.LOG_POLL_INTERVAL, interval=800, n_intervals=0),
+
         html.Div(
             [
                 # LEFT COLUMN: controls
                 html.Div(
                     [
                         html.H3("Grid Calibration Extraction"),
-
-                        # Row 0 – raw images selection (no button, just a dropdown)
                         html.Label("Raw images"),
-
                         *rows,
-
                         html.Hr(),
-
-                        # Row 5 – Exit
+                        
                         html.Button(
                             "Exit",
                             id=ids.BTN_EXIT,
                             n_clicks=0,
-                            style={"width": "100%"},
+                            className="button-exit",
                         ),
-
-                        html.Div(id=ids.STATUS_TEXT, style={"marginTop": "10px"}),
+                        html.Div(id=ids.STATUS_TEXT, className="status-text"),
                     ],
-                    style={
-                        "width": "28%",
-                        "display": "inline-block",
-                        "verticalAlign": "top",
-                        "padding": "10px",
-                        "boxSizing": "border-box",
-                    },
+                    className="control-panel",
                 ),
 
                 # RIGHT COLUMN: image + log
                 html.Div(
                     [
-                        html.Div(   # <-- wrapper that owns the space
+                        html.Div(
                             dcc.Loading(
                                 type="default",
                                 children=html.Div(
                                     children = pipeline_plotters[first_available_step](0),
                                     id=ids.PLOTTING_AREA,
-                                    style={
-                                        "width": "100%",
-                                        "height": "100%"
-                                    }
+                                    className="plot-area",
                                 ),
                             ),
-                            style={
-                                "flex": "1 1 auto",     # take remaining vertical space
-                                "minHeight": 0,         # IMPORTANT for plotly in flexbox
-                                "border": "0px",
-                            },
+                            className="plot-panel",
                         ),
 
                         html.Div(
                             id=ids.LOG_WINDOW,
                             children="Log output will appear here...",
-                            style={
-                                "flex": "0 0 15vh",     # fixed height
-                                "height": "15vh",
-                                "marginTop": "10px",
-                                "padding": "6px 8px",
-                                "border": "1px solid #ccc",
-                                "borderRadius": "4px",
-                                "backgroundColor": "#111",
-                                "color": "#eee",
-                                "fontFamily": "monospace",
-                                "fontSize": "12px",
-                                "overflowY": "scroll",
-                                "whiteSpace": "pre-wrap",
-                            },
+                            className="log-window",
                         ),
                     ],
-                    style={
-                        "width": "72%",
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "verticalAlign": "top",
-                        "padding": "10px",
-                        "boxSizing": "border-box",
-                        "height": "calc(100vh - 20px)",  # pin the column height
-                        "minHeight": 0,                  # IMPORTANT
-                    },
+                    className="content-panel",
                 )
             ],
-            style={"width": "100%", "display": "flex", "flexDirection": "row"},
+            className="app-main",
         ),
-    ]
+    ],
+    className="app-shell",
 )

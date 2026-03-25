@@ -88,7 +88,7 @@ def average_detected_grids_images(
     the generated averaged grid points `.npz` file.
     """
 
-    out_path = out_dir / ALL_PRODUCTS["averaged-grid"].path()
+    out_path = out_dir / ALL_PRODUCTS["averaged-grid"].path(input_file=image_paths[0])
     detection_paths = [
         out_dir / ALL_PRODUCTS["grid-points"].path(input_file=img)
         for img in image_paths

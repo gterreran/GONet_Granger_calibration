@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dash import dcc, html
 
-from .core import _weighted_centroid, _robust_limits, _apply_initial_zoom
+from .core import _weighted_centroid, _robust_limits, _apply_initial_zoom, plot_layout
 from ..server import app
 from GONet_Wizard.GONet_utils import GONetFileRaw # type: ignore
 
@@ -115,6 +115,7 @@ def plot_raw_image(idx: int):
         margin=dict(l=10, r=10, t=40, b=10),
         uirevision="raw-image-view",
         dragmode="pan",
+        **plot_layout,
     )
 
     img_for_center = chans["green1"]

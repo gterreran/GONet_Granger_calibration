@@ -6,4 +6,4 @@ from pathlib import Path
 server = Flask("Grainger Grid Calibration Server")
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-app = Dash(server=server, assets_folder=str(ASSETS))
+app = Dash(server=server, assets_folder=str(ASSETS), suppress_callback_exceptions=True)

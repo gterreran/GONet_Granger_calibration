@@ -9,7 +9,7 @@ import numpy as np
 import plotly.graph_objects as go
 from dash import dcc, html
 
-from .core import _weighted_centroid, _robust_limits, _apply_initial_zoom
+from .core import _weighted_centroid, _robust_limits, _apply_initial_zoom, plot_layout
 from ..server import app
 
 CHANNEL_COLORS = {
@@ -83,9 +83,11 @@ def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str
         title=title,
         margin=dict(l=40, r=10, t=40, b=30),
         showlegend=False,  # <-- hard-disable legends
-        xaxis=dict(title="Pixel value"),
-        yaxis=dict(title="Density"),
+        **plot_layout,
     )
+
+    fig.update_xaxes(title="Pixel value")
+    fig.update_yaxes(title="Density")
 
     return fig
 
@@ -157,11 +159,11 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
     _apply_initial_zoom(img_fig, cy, cx, img.shape, half_size=zoom_half_size)
 
     img_fig.update_layout(
-        title=f"Full array: {npz_path.name}",
         margin=dict(l=10, r=10, t=40, b=10),
         height=520,
         uirevision=f"full-array-{npz_path}",  # keep zoom while logs update
         dragmode="pan",
+        **plot_layout,
     )
 
     raw_hist_fig = _hist_overlay_figure(data, prefix="raw", title="RAW channel histograms (from diagnostics)")

@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Iterable, Optional, List, Dict, Any
+from typing import Iterable, List, Dict, Any
 
 
 class ProductKind(Enum):
@@ -16,12 +16,13 @@ class ProductSpec:
     suffix: str
     kind: ProductKind
 
-    def path(self, input_file: Optional[Path] = None) -> Path:
+    def path(self, input_file: Path)-> Path:
         if self.kind is ProductKind.SINGLETON:
-            return Path(self.suffix)
+            root = '_'.join(input_file.stem.split("_")[:3])
+            return Path(f"{root}{self.suffix}")
         else:
             return Path(f"{input_file.stem}{self.suffix}")
-
+    
 
 # Definition of known products
 FULL_ARRAY = ProductSpec(
@@ -38,17 +39,23 @@ GRID_POINTS = ProductSpec(
 
 AVERAGED_GRID = ProductSpec(
     name="averaged-grid",
-    suffix="averaged_grid.npz",
+    suffix="_averaged_grid.npz",
     kind=ProductKind.SINGLETON,
 )
 
-CALIBRATED_GRID = ProductSpec(
-    name="calibrated-grid",
-    suffix="calibrated_grid.npz",
+UNWRAPPED_GRID = ProductSpec(
+    name="unwrapped-grid",
+    suffix="_unwrapped_grid.npz",
     kind=ProductKind.SINGLETON,
 )
 
-ALL_PRODUCTS = (FULL_ARRAY, GRID_POINTS, AVERAGED_GRID, CALIBRATED_GRID)
+NOMINAL_GRID = ProductSpec(
+    name="nominal-grid",
+    suffix="_nominal_grid.npz",
+    kind=ProductKind.SINGLETON,
+)
+
+ALL_PRODUCTS = (FULL_ARRAY, GRID_POINTS, AVERAGED_GRID, UNWRAPPED_GRID, NOMINAL_GRID)
 ALL_PRODUCTS = {
     p.name: p
     for p in ALL_PRODUCTS
@@ -87,13 +94,13 @@ def discover_products(
 
     for product in ALL_PRODUCTS.values():
         if product.kind is ProductKind.SINGLETON:
-            path = outdir / product.path()
+            path = outdir / product.path(input_file=input_files[0])
             if path.exists():
                 results[product.name] = path
 
         else:
             for infile in input_files:
-                path = outdir / product.path(infile)
+                path = outdir / product.path(input_file=infile)
                 if path.exists():
                     results[product.name].append(path)
 

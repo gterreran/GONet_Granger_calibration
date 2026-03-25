@@ -1,5 +1,8 @@
+# grid_calibration/gui/steps.py
+
 from __future__ import annotations
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Optional, Callable
 from ..pipeline import (
     build_full_arrays_for_images,
@@ -10,6 +13,10 @@ from .plot_utils import (
     plot_raw_image,
     plot_full_array_product,
     plot_grid_array,
+    plot_unwrapped_grid,
+    initialize_unwrapped_grid,
+    plot_nominal_grid,
+    initialize_nominal_grid,
 )
 
 StepMode = Literal["batch", "interactive"]
@@ -24,11 +31,13 @@ class StepSpec:
     order: int
     button_label: Optional[str] = None
 
-    pipeline_func: Optional[Callable] = None
+    pipeline_func: Optional[Callable] = None          # for batch steps
     viewer_func: Optional[Callable] = None
+    initialize_interactive_state: Optional[Callable] = None # for interactive steps
 
     enabled_if: Callable[[dict], bool] = lambda df: True
     clickable_if: Callable[[dict], bool] = lambda df: True
+    
 
 STEPS = [
     StepSpec(
@@ -76,16 +85,28 @@ STEPS = [
         clickable_if=lambda df: bool(df.get("averaged-grid")),
     ),
     StepSpec(
-        step="calibrated-grid",
-        label="Calibrated grid",
+        step="unwrapped-grid",
+        label="Unwrapped grid",
         option_kind="label",
-        mode="interactive",  # important for later
+        mode="interactive",
         order=4,
-        button_label="4. Calibrate grid",
-        pipeline_func=None,
-        viewer_func=None,
+        button_label="4. Unwrap grid",
+        initialize_interactive_state=initialize_unwrapped_grid,
+        viewer_func=plot_unwrapped_grid,
         enabled_if=lambda df: bool(df.get("averaged-grid")),
-        clickable_if=lambda df: bool(df.get("calibrated-grid")),
+        clickable_if=lambda df: bool(df.get("unwrapped-grid")),
+    ),
+    StepSpec(
+        step="nominal-grid",
+        label="Nominal grid",
+        option_kind="label",
+        mode="interactive",
+        order=5,
+        button_label="5. Nominal grid",
+        initialize_interactive_state=initialize_nominal_grid,
+        viewer_func=plot_nominal_grid,
+        enabled_if=lambda df: bool(df.get("unwrapped-grid")),
+        clickable_if=lambda df: bool(df.get("nominal-grid")),
     ),
 ]
 

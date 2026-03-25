@@ -1,3 +1,5 @@
+# grid_calibration/gui/callbacks/system.py
+
 from __future__ import annotations
 
 from dash import Input, Output, State, clientside_callback, ALL
@@ -126,7 +128,7 @@ clientside_callback(
         return window.dash_clientside.no_update;
     }
     """,
-    Output(ids.STORE_ACTIVE_STEP, "data"),
+    Output(ids.STORE_SELECTED_STEP, "data"),
     Input({"type": "control-row", "step": ALL}, "n_clicks"),
     State({"type": "control-row", "step": ALL}, "disable_n_clicks"),
     State(ids.STORE_CONTROL_STEPS, "data"),

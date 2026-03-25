@@ -68,6 +68,18 @@ def average_detected_grids(grid_npz_files, outfile, match_tolerance=5.0, min_mat
         Number of *distinct images* contributing to each averaged point.
     """
 
+    # --- Sanity checks
+    # override min_matches to be at most the number of input files
+    n_files = len(grid_npz_files)
+    if n_files == 0:
+        logging.warning("No grid files provided for averaging.")
+        np.savez_compressed(outfile, grid=np.empty((0, 2)), counts=np.empty((0,), dtype=int))
+        return np.empty((0, 2)), np.empty((0,), dtype=int)
+    if min_matches > n_files:
+        logging.warning(f"min_matches={min_matches} is greater than number of files={n_files}. Reducing min_matches to {n_files}.")
+    min_matches = min(min_matches, n_files)
+
+
     # --- 1) Load all detections and keep track of which image they came from
     all_points = []
     image_ids = []

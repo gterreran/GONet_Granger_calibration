@@ -1,4 +1,49 @@
 import numpy as np
+from dash import dcc, html
+from .. import ids
+
+colorscale = [
+    [0.0, 'rgb(0, 0, 0)'],
+    [0.09090909090909091, 'rgb(16, 16,16)'],
+    [0.18181818181818182, 'rgb(38, 38, 38)'],
+    [0.2727272727272727, 'rgb(59, 59, 59)'],
+    [0.36363636363636365, 'rgb(81, 80, 80)'],
+    [0.45454545454545453, 'rgb(102, 101, 101)'],
+    [0.5454545454545454, 'rgb(124, 123, 122)'],
+    [0.6363636363636364, 'rgb(146, 146, 145)'],
+    [0.7272727272727273, 'rgb(171, 171, 170)'],
+    [0.8181818181818182, 'rgb(197, 197, 195)'],
+    [0.9090909090909091, 'rgb(224, 224, 223)'],
+    [1.0, 'rgb(254, 254, 253)'],
+]
+
+plot_layout = {
+    # dark backgrounds
+    "paper_bgcolor": "rgba(0,0,0,0)",   # transparent so it blends with your Dash theme
+    "plot_bgcolor": "#0f1117",
+
+    # global text color
+    "font": {"color": "#e8ecf3"},
+
+    "xaxis": {
+        "gridcolor": "#2a3242",
+        "zerolinecolor": "#2a3242",
+        "linecolor": "#2a3242",
+    },
+
+    "yaxis": {
+        "gridcolor": "#2a3242",
+        "zerolinecolor": "#2a3242",
+        "linecolor": "#2a3242",
+    },
+
+    "hoverlabel": {
+        "bgcolor": "#1d2330",
+        "font": {"color": "#e8ecf3"},
+    },
+}
+
+
 
 def _weighted_centroid(img: np.ndarray, lo=70.0, hi=99.7) -> tuple[float, float]:
     vmin, vmax = np.percentile(img, [lo, hi])
@@ -42,9 +87,37 @@ def _apply_initial_zoom(fig, center_y: float, center_x: float, shape, half_size:
 
     # Apply to ALL subplots (because axes are matched, setting one is usually enough,
     # but doing all avoids Plotly edge-cases with autorange/matches).
-    for key in fig.layout:
+    for key in fig["layout"]:
         if key.startswith("xaxis"):
             fig["layout"][key].update({"range":[x0, x1], "autorange":False})
         elif key.startswith("yaxis"):
             fig["layout"][key].update({"range":[y1, y0], "autorange":False})
     
+
+def make_div_from_fig_dict(img_fig) -> dict:
+
+    return html.Div(
+        [
+            html.Div(
+                id=ids.FIGURE_CONTAINER_ID,
+                children=dcc.Graph(
+                    id=ids.GRID_GRAPH_ID,
+                    figure=img_fig,
+                    config={
+                        "displaylogo": False,
+                        "scrollZoom": True,
+                        "responsive": True,
+                    },
+                    style={"height": "100%", "width": "100%"},
+                ),
+                style={
+                    "display": "flex",
+                    "flexDirection": "row",
+                    "height": "70vh",
+                    "width": "100%",
+                    "gap": "8px",
+                },
+            )
+        ],
+        style={"width": "100%"},
+    )

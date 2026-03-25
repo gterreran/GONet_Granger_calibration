@@ -10,11 +10,14 @@ def main():
     parser.add_argument(
         "--outdir", type=str, default=None, help="Output directory for processed files"
     )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug mode with verbose logging"
+    )
     args = parser.parse_args()
 
     files = filter_by_ext(args.file_list, [".jpg", ".tiff"])
 
-    launch_extraction_gui(files, outdir=args.outdir)
+    launch_extraction_gui(files, outdir=args.outdir, debug=args.debug)
 
 if __name__ == "__main__":
     main()
