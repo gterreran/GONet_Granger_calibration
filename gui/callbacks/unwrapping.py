@@ -226,6 +226,9 @@ def update_calibration_figure(pending, confirmed, fig):
         logger.info(f"Loading averaged grid from {averaged_grid_path}")
         pts = _load_grid(averaged_grid_path)["grid"]
 
+        # create and index array
+        idx = np.arange(pts.shape[0])
+
         cx = float(confirmed["x"])
         cy = float(confirmed["y"])
 
@@ -236,6 +239,7 @@ def update_calibration_figure(pending, confirmed, fig):
         theta = np.mod(theta, 360.0)
 
         order = np.argsort(theta)
+        idx = idx[order]
         theta = theta[order]
         r = r[order]
         pts = pts[order]
@@ -243,7 +247,7 @@ def update_calibration_figure(pending, confirmed, fig):
         infile = app.server.config["data_files"]["raw-image"][0]  # get the first raw image as input reference
 
         out_npz = app.server.config["output_dir"] / ALL_PRODUCTS["unwrapped-grid"].path(input_file=Path(infile))
-        np.savez_compressed(out_npz, theta=theta, r=r, pts=pts)
+        np.savez_compressed(out_npz, idx=idx, theta=theta, r=r, pts=pts, center={"x": cx, "y": cy})
         logger.info(f"Saved unwrapped grid to {out_npz}")
 
         app.server.config["data_files"]["unwrapped-grid"] = out_npz

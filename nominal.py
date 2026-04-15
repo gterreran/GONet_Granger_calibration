@@ -330,6 +330,7 @@ def estimate_ring_levels_with_wave_correction(
 
 def detect_nominal(data, params: dict) -> None:
     logger.info("Detecting nominal grid assignment...")
+    base_idx = data["idx"]
     pixels = data["pts"]
     theta = data["theta"]
     r = data["r"]
@@ -410,7 +411,7 @@ def detect_nominal(data, params: dict) -> None:
             common = np.intersect1d(g_r, g_theta)
             for idx in common:
                 nominal_assignment.append({
-                    "idx": int(idx),
+                    "idx": int(base_idx[idx]),
                     "pixel_x": float(pixels[idx, 1]),
                     "pixel_y": float(pixels[idx, 0]),
                     "r": float(pts[idx, 1]),
