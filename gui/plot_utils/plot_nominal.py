@@ -6,7 +6,7 @@ import numpy as np
 import logging
 from .core import make_div_from_fig_dict
 from ..plot_utils.plot_unwrapped import unwrapped_graph
-from dash import dcc, html
+from dash import dcc, html, Input, Output, State, ctx
 from .. import ids
 from ..server import app
 from ...nominal import detect_nominal, DEFAULT_NOMINAL_PARAMS
@@ -549,6 +549,50 @@ def initialize_nominal_grid() -> html.Div:
             ),
 
             html.Div(
+                id=ids.RIGID_SHIFT_CONTROL_DIV_ID,
+                children=[
+                    html.Hr(className="section-divider"),
+
+                    html.Label("Rigid shift control", className="control-label"),
+
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    html.Label("Shift θ spokes", className="sub-label"),
+                                    html.Div(
+                                        [
+                                            html.Button("-", id=ids.SHIFT_SPOKES_DEC_ID, n_clicks=0, className="tiny-button"),
+                                            html.Button("+", id=ids.SHIFT_SPOKES_INC_ID, n_clicks=0, className="tiny-button"),
+                                        ],
+                                        className="shift-button-row",
+                                    ),
+                                ],
+                                className="shift-control-block",
+                            ),
+
+                            html.Div(className="vertical-divider"),
+
+                            html.Div(
+                                [
+                                    html.Label("Shift r rings", className="sub-label"),
+                                    html.Div(
+                                        [
+                                            html.Button("-", id=ids.SHIFT_RINGS_DEC_ID, n_clicks=0, className="tiny-button"),
+                                            html.Button("+", id=ids.SHIFT_RINGS_INC_ID, n_clicks=0, className="tiny-button"),
+                                        ],
+                                        className="shift-button-row",
+                                    ),
+                                ],
+                                className="shift-control-block",
+                            ),
+                        ],
+                        className="shift-controls-row",
+                    ),
+                ],
+            ),
+
+            html.Div(
                 id=ids.SELECTION_CONTROL_DIV_ID,
                 children=[
                     html.Hr(className="section-divider"),
@@ -557,36 +601,43 @@ def initialize_nominal_grid() -> html.Div:
 
                     html.Div(
                         [
-                            html.Label(
-                                "Edit nominal r of selected ring",
-                                className="sub-label",
+                            html.Div(
+                                [
+                                    html.Label("r selected ring", className="sub-label"),
+                                    dcc.Input(
+                                        id=ids.EDIT_NOMINAL_RING_ID,
+                                        type="number",
+                                        value=None,
+                                        step=2.5,
+                                        min=0,
+                                        max=90,
+                                        className="param-input",
+                                    ),
+                                    dcc.Store(id=ids.VALID_NOMINAL_RING_ID, data=None),
+                                ],
+                                className="input-col",
                             ),
-                            dcc.Input(
-                                id=ids.EDIT_NOMINAL_RING_ID,
-                                type="number",
-                                value=None,
-                                step=2.5,
-                                className="param-input",
-                            ),
-                        ],
-                        className="control-group",
-                    ),
 
-                    html.Div(
-                        [
-                            html.Label(
-                                "Edit nominal θ of selected spoke",
-                                className="sub-label",
-                            ),
-                            dcc.Input(
-                                id=ids.EDIT_NOMINAL_SPOKE_ID,
-                                type="number",
-                                value=None,
-                                step=2.5,
-                                className="param-input",
+                            html.Div(className="vertical-divider"),
+
+                            html.Div(
+                                [
+                                    html.Label("θ selected spoke", className="sub-label"),
+                                    dcc.Input(
+                                        id=ids.EDIT_NOMINAL_SPOKE_ID,
+                                        type="number",
+                                        value=None,
+                                        step=2.5,
+                                        min=0,
+                                        max=360,
+                                        className="param-input",
+                                    ),
+                                    dcc.Store(id=ids.VALID_NOMINAL_SPOKE_ID, data=None),
+                                ],
+                                className="input-col",
                             ),
                         ],
-                        className="control-group",
+                        className="selection-row",
                     ),
                 ],
                 className="selection-panel",
@@ -600,4 +651,3 @@ def initialize_nominal_grid() -> html.Div:
         [nominal_div, controls],
         className="two-panel-row",
     )
-

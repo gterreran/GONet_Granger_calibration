@@ -33,6 +33,7 @@ def control_row(step: StepSpec, button, right, clickable: bool):
             "cursor": "pointer" if clickable else "default",
             "opacity": 1.0 if clickable else 0.55,
         },
+        className="control-row"
     )
 
 rows = []
@@ -129,6 +130,7 @@ layout = html.Div(
                         html.Div(
                             dcc.Loading(
                                 type="default",
+                                parent_className="plot-loading",
                                 children=html.Div(
                                     children = pipeline_plotters[first_available_step](0),
                                     id=ids.PLOTTING_AREA,

@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from dash import Input, Output, State, ctx, no_update, ALL
-from ..steps import PIPELINE_FUNCS, ORDERED_STEPS, RUNNABLE_STEPS, STEP_BY_ID
+from ..steps import ORDERED_STEPS, RUNNABLE_STEPS, STEP_BY_ID
 from ..server import app
 from .. import ids
-from typing import Any
-from pathlib import Path
 
 
 def _empty_outputs():

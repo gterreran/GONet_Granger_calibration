@@ -328,12 +328,146 @@ def estimate_ring_levels_with_wave_correction(
     return levels, wave, grp_bins
 
 
-def detect_nominal(data, params: dict) -> None:
+def detect_nominal(data, params: dict):
+    """
+    Detect and assign nominal polar-grid coordinates to measured grid points.
+
+    This function takes the detected calibration-grid points from a GONet image
+    and assigns each usable point a nominal polar coordinate:
+
+    - ``nominal_r``: the expected angular radius of the grid circle, in degrees
+    - ``nominal_theta``: the expected angular position of the grid spoke, in degrees
+
+    The input detections are assumed to already have approximate measured polar
+    coordinates ``theta`` and ``r`` relative to an estimated image/grid center.
+    The function then performs the following steps:
+
+    1. Detect ring fragments
+       Points are chained into approximately constant-radius groups using a
+       nearest-neighbor walk with a gate on measured radius. These groups
+       correspond to circular grid rings, although individual rings may be
+       fragmented or distorted.
+
+    2. Detect spoke fragments
+       Points are chained into approximately constant-theta groups using a
+       nearest-neighbor walk with a gate on measured theta and a required
+       outward radial progression. These groups correspond to radial spokes.
+
+    3. Estimate ring levels
+       Each ring fragment is assigned a representative measured pixel radius.
+       A shared wave-like radial pattern as a function of theta is estimated
+       and removed iteratively, allowing ring levels to be compared even when
+       fragments cover different theta ranges.
+
+    4. Assign nominal circle radii
+       The median measured spacing between ring levels is used to infer the
+       nominal grid spacing. Each ring group is then assigned to the nearest
+       nominal circle index, assuming the known grid spacing ``DEG_STEP``.
+
+    5. Assign nominal spoke angles
+       Each spoke group is assigned a representative theta value. A global
+       spoke offset is estimated so that spokes align with the expected
+       ``DEG_STEP`` angular grid.
+
+    6. Check for a rigid radial circle-label offset
+       Because the absolute nominal circle index can be ambiguous, the function
+       tests candidate rigid shifts of the assigned circle radii. For each
+       shift, it fits a no-intercept odd-cubic radial relation between nominal
+       radius and measured pixel radius:
+
+       ``r_pix = a1 * r_nom + a3 * r_nom**3``
+
+       The shift with the lowest robust scatter, measured using MAD, is selected.
+       The shift is applied only if it improves the zero-shift MAD by at least
+       20 percent.
+
+    7. Build final nominal assignments
+       Instead of repeatedly intersecting every ring group with every spoke
+       group, the function builds point-to-ring and point-to-spoke lookup arrays.
+       Points that belong to both a valid ring and a valid spoke are emitted as
+       nominal calibration records.
+
+    Parameters
+    ----------
+    data : mapping
+        Input data dictionary containing at least:
+
+        ``"idx"``
+            Original point indices.
+
+        ``"pts"``
+            Pixel coordinates. The current convention is assumed to be
+            ``(row, col)``, so output ``pixel_x`` is taken from column 1 and
+            ``pixel_y`` from column 0.
+
+        ``"theta"``
+            Measured polar theta values in degrees.
+
+        ``"r"``
+            Measured polar radius values in pixels.
+
+        ``"center"``
+            Object or scalar array containing the estimated center dictionary
+            with ``"x"`` and ``"y"`` entries.
+
+    params : dict
+        Nominal-grid detection parameters. Expected keys include:
+
+        ``"ring_max_dist"``
+            Maximum nearest-neighbor distance for ring chaining.
+
+        ``"ring_gate_tol_r"``
+            Radius gate tolerance for ring chaining.
+
+        ``"min_ring_group"``
+            Minimum number of points required to keep a ring group.
+
+        ``"spoke_max_dist"``
+            Maximum nearest-neighbor distance for spoke chaining.
+
+        ``"spoke_min_dist"``
+            Minimum radial increase required when extending spoke chains.
+
+        ``"spoke_gate_tol_theta"``
+            Theta gate tolerance for spoke chaining.
+
+        ``"min_spoke_group"``
+            Minimum number of points required to keep a spoke group.
+
+    Returns
+    -------
+    list of dict
+        One dictionary per assigned grid point. Each dictionary contains:
+
+        ``idx``
+            Original point index.
+
+        ``pixel_x, pixel_y``
+            Pixel coordinates.
+
+        ``r, theta``
+            Measured polar coordinates.
+
+        ``circle_index, spoke_index``
+            Internal detected ring/spoke group indices.
+
+        ``nominal_r, nominal_theta``
+            Assigned nominal polar-grid coordinates in degrees.
+
+    Raises
+    ------
+    RuntimeError
+        If the measured circle spacing cannot be estimated.
+    """
+
     logger.info("Detecting nominal grid assignment...")
+
     base_idx = data["idx"]
     pixels = data["pts"]
     theta = data["theta"]
     r = data["r"]
+    center = data["center"].item()
+
     pts = np.column_stack([theta, r]).astype(float, copy=False)
 
     # -----------------------------------------------------------------
@@ -368,12 +502,17 @@ def detect_nominal(data, params: dict) -> None:
     groups_theta = [g for g in groups_theta if g.size >= params["min_ring_group"]]
     groups_r = [g for g in groups_r if g.size >= params["min_spoke_group"]]
 
-    logger.info(f"Found {len(groups_theta)} ring fragments and {len(groups_r)} spoke fragments.")
+    logger.info(
+        "Found %d ring fragments and %d spoke fragments.",
+        len(groups_theta),
+        len(groups_r),
+    )
 
     # -----------------------------------------------------------------
     # 2) Assign nominal circles
     # -----------------------------------------------------------------
     logger.info("Estimating nominal circle levels with wave correction...")
+
     ring_levels_px, wave, grp_bins = estimate_ring_levels_with_wave_correction(
         pts,
         groups_theta,
@@ -383,46 +522,128 @@ def detect_nominal(data, params: dict) -> None:
         n_iter=DEFAULT_NOMINAL_PARAMS["n_wave_iter"],
     )
 
-    spacing_px = robust_median_spacing(ring_levels_px, min_sep=2.0, max_sep=200.0)
+    spacing_px = robust_median_spacing(
+        ring_levels_px,
+        min_sep=2.0,
+        max_sep=200.0,
+    )
+
     if not np.isfinite(spacing_px) or spacing_px <= 0:
         raise RuntimeError("Failed to estimate circle spacing in pixels.")
 
-    logger.info(f"Estimated circle spacing: {spacing_px:.3f} px per {DEG_STEP}°")
+    logger.info("Estimated circle spacing: %.3f px per %.1f°", spacing_px, DEG_STEP)
 
-    # Assign nominal circle values
     k_circle, rho_circle = assign_nominal_circles(
         ring_levels_px,
         spacing_px=spacing_px,
     )
 
-    # Assign nominal spoke values
+    # -----------------------------------------------------------------
+    # 3) Assign nominal spokes
+    # -----------------------------------------------------------------
     theta_g = spoke_group_theta_estimates(pts, groups_r)
+
     k_spoke, theta_nom, theta0 = assign_nominal_spokes(
         theta_g,
         theta0=None,
     )
 
-    logger.info(f"Chosen spoke offset theta0: {theta0:.3f} deg")
+    logger.info("Chosen spoke offset theta0: %.3f deg", theta0)
 
+    # -----------------------------------------------------------------
+    # 4) Check for rigid radial circle shift
+    # -----------------------------------------------------------------
+    def fit_no_intercept_odd_cubic(x, y):
+        """Fit y = a1*x + a3*x**3 with no intercept."""
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+
+        A = np.column_stack([x, x**3])
+        coeff, *_ = np.linalg.lstsq(A, y, rcond=None)
+        fitted = A @ coeff
+        return fitted, coeff
+
+    ring_r_nom = rho_circle.astype(float)
+    ring_dist_med = ring_levels_px.astype(float)
+
+    shift_scores = {}
+
+    for shift in np.arange(-5.0, 7.5, DEG_STEP):
+        shifted_r = ring_r_nom + shift
+        valid = shifted_r >= 0.0
+
+        if np.sum(valid) < 4:
+            continue
+
+        fitted, _ = fit_no_intercept_odd_cubic(
+            shifted_r[valid],
+            ring_dist_med[valid],
+        )
+
+        resid = ring_dist_med[valid] - fitted
+        mad = float(1.4826 * np.median(np.abs(resid - np.median(resid))))
+
+        shift_scores[float(shift)] = mad
+
+    if shift_scores:
+        best_shift = min(shift_scores, key=shift_scores.get)
+        zero_mad = shift_scores.get(0.0)
+        best_mad = shift_scores[best_shift]
+
+        if zero_mad is not None and zero_mad > 0:
+            improvement_frac = (zero_mad - best_mad) / zero_mad
+        else:
+            improvement_frac = 0.0
+
+        if best_shift != 0.0 and improvement_frac >= 0.20:
+            logger.warning(
+                "Detected likely rigid circle offset: %+4.1f deg. Applying shift.",
+                best_shift,
+            )
+            rho_circle = rho_circle + best_shift
+        else:
+            logger.info("No robust rigid circle offset applied.")
+    else:
+        logger.info("Skipping rigid circle offset check: no valid shift scores.")
+
+    # -----------------------------------------------------------------
+    # 5) Build point -> ring/spoke lookup arrays
+    # -----------------------------------------------------------------
+    n_pts = pts.shape[0]
+
+    ring_id = np.full(n_pts, -1, dtype=int)
+    spoke_id = np.full(n_pts, -1, dtype=int)
+
+    for i, g in enumerate(groups_theta):
+        ring_id[g] = i
+
+    for i, g in enumerate(groups_r):
+        spoke_id[g] = i
+
+    valid = (ring_id >= 0) & (spoke_id >= 0)
+    valid_idx = np.nonzero(valid)[0]
+
+    # -----------------------------------------------------------------
+    # 6) Build output records
+    # -----------------------------------------------------------------
     nominal_assignment = []
-    # isolate only the points that bolongs to both a ring and a spoke group, and anf fill in the data dict
-    for index_g_r, g_r in enumerate(groups_r):
-        for index_g_theta, g_theta in enumerate(groups_theta):
-            common = np.intersect1d(g_r, g_theta)
-            for idx in common:
-                nominal_assignment.append({
-                    "idx": int(base_idx[idx]),
-                    "pixel_x": float(pixels[idx, 1]),
-                    "pixel_y": float(pixels[idx, 0]),
-                    "r": float(pts[idx, 1]),
-                    "theta": float(pts[idx, 0]),
-                    "circle_index": int(index_g_theta),
-                    "spoke_index": int(index_g_r),
-                    # "k_circle": int(k_circle[index_g_theta]),
-                    # "k_spoke": int(k_spoke[index_g_r]),
-                    "nominal_r": float(rho_circle[index_g_theta]),
-                    "nominal_theta": float(theta_nom[index_g_r]),
-                })
 
-    logger.info(f"Assigned nominal values to {len(nominal_assignment)} points.")
+    for idx in valid_idx:
+        i_ring = ring_id[idx]
+        i_spoke = spoke_id[idx]
+
+        nominal_assignment.append({
+            "idx": int(base_idx[idx]),
+            "pixel_x": float(pixels[idx, 1]),
+            "pixel_y": float(pixels[idx, 0]),
+            "r": float(pts[idx, 1]),
+            "theta": float(pts[idx, 0]),
+            "circle_index": int(i_ring),
+            "spoke_index": int(i_spoke),
+            "nominal_r": float(rho_circle[i_ring]),
+            "nominal_theta": float(theta_nom[i_spoke]),
+        })
+
+    logger.info("Assigned nominal values to %d points.", len(nominal_assignment))
+
     return nominal_assignment
