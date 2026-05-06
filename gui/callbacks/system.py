@@ -128,11 +128,12 @@ clientside_callback(
         return window.dash_clientside.no_update;
     }
     """,
-    Output(ids.STORE_SELECTED_STEP, "data"),
+    Output(ids.STORE_SELECTED_STEP, "data", allow_duplicate=True),
     Input({"type": "control-row", "step": ALL}, "n_clicks"),
     State({"type": "control-row", "step": ALL}, "disable_n_clicks"),
     State(ids.STORE_CONTROL_STEPS, "data"),
     State(ids.STORE_ACTIVE_STEP, "data"),
+    prevent_initial_call=True,
 )
 clientside_callback(
     """

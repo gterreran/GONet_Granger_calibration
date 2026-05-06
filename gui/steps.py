@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal, Optional, Callable
 from ..pipeline import (
     build_full_arrays_for_images,
@@ -17,6 +16,8 @@ from .plot_utils import (
     initialize_unwrapped_grid,
     plot_nominal_grid,
     initialize_nominal_grid,
+    plot_bootstrapping_grid,
+    initialize_bootstrapping_grid
 )
 
 StepMode = Literal["batch", "interactive"]
@@ -107,6 +108,18 @@ STEPS = [
         viewer_func=plot_nominal_grid,
         enabled_if=lambda df: bool(df.get("unwrapped-grid")),
         clickable_if=lambda df: bool(df.get("nominal-grid")),
+    ),
+    StepSpec(
+        step="bootstrapping-grid",
+        label="Bootstrapping grid",
+        option_kind="label",
+        mode="interactive",
+        order=6,
+        button_label="6. Bootstrapping grid",
+        initialize_interactive_state=initialize_bootstrapping_grid,
+        viewer_func=plot_bootstrapping_grid,
+        enabled_if=lambda df: bool(df.get("nominal-grid")),
+        clickable_if=lambda df: bool(df.get("bootstrapping-grid")),
     ),
 ]
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional, Tuple
 import logging
 import numpy as np
-from dash import Input, Output, State, callback, ctx, no_update, html
+from dash import Input, Output, State, ctx, no_update, html
 
 from .. import ids
 from ..server import app
@@ -117,7 +117,7 @@ def _overlay_center_markers(
 # Callbacks
 # -------------------------
 
-@callback(
+@app.callback(
     Output(ids.PENDING_STORE_ID, "data"),
     Input(ids.GRID_GRAPH_ID, "clickData"),
     State(ids.MODE_RADIO_ID, "value"),
@@ -145,7 +145,7 @@ def set_pending_center(click_data, mode, fig):
     return {"x": xs, "y": ys, "mode": "snap", "nearest_index": i_min, "distance": d_min}
 
 
-@callback(
+@app.callback(
     Output(ids.CENTER_STORE_ID, "data"),
     Input(ids.CONFIRM_BTN_ID, "n_clicks"),
     Input(ids.RESET_BTN_ID, "n_clicks"),
@@ -163,7 +163,7 @@ def confirm_or_reset_center(_n_confirm, _n_reset, pending):
     return no_update
 
 
-@callback(
+@app.callback(
     Output(ids.UNWRAPPING_STATUS_ID, "children"),
     Input(ids.PENDING_STORE_ID, "data"),
     Input(ids.CENTER_STORE_ID, "data"),
@@ -185,24 +185,9 @@ def update_status(pending, confirmed):
     ]
 
 
-@callback(
+@app.callback(
     Output(ids.GRID_GRAPH_ID, "figure", allow_duplicate=True),
-    Input(ids.PENDING_STORE_ID, "data"),
-    Input(ids.CENTER_STORE_ID, "data"),
-    State(ids.GRID_GRAPH_ID, "figure"),
-    prevent_initial_call=True,
-)
-def overlay_markers(pending, confirmed, fig):
-    if pending is None:
-        return no_update
-    if fig is None:
-        return no_update
-    return _overlay_center_markers(fig, pending, confirmed)
-
-
-@callback(
-    Output(ids.GRID_GRAPH_ID, "figure"),
-    Output(ids.STORE_STEP_RESULT, "data"),
+    Output(ids.STORE_STEP_RESULT, "data", allow_duplicate=True),
     # --------------------- 
     Input(ids.PENDING_STORE_ID, "data"),
     Input(ids.CENTER_STORE_ID, "data"),

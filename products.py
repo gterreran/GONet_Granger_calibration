@@ -55,7 +55,13 @@ NOMINAL_GRID = ProductSpec(
     kind=ProductKind.SINGLETON,
 )
 
-ALL_PRODUCTS = (FULL_ARRAY, GRID_POINTS, AVERAGED_GRID, UNWRAPPED_GRID, NOMINAL_GRID)
+BOOTSTRAPPING_GRID = ProductSpec(
+    name="bootstrapping-grid",
+    suffix="_bootstrapping_grid.npz",
+    kind=ProductKind.SINGLETON,
+)
+
+ALL_PRODUCTS = (FULL_ARRAY, GRID_POINTS, AVERAGED_GRID, UNWRAPPED_GRID, NOMINAL_GRID, BOOTSTRAPPING_GRID)
 ALL_PRODUCTS = {
     p.name: p
     for p in ALL_PRODUCTS

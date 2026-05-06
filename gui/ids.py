@@ -64,3 +64,13 @@ SHIFT_SPOKES_DEC_ID = "shift-spokes-dec-btn"
 SHIFT_SPOKES_INC_ID = "shift-spokes-inc-btn"
 SHIFT_RINGS_DEC_ID = "shift-rings-dec-btn"
 SHIFT_RINGS_INC_ID = "shift-rings-inc-btn"
+
+# Bootstrapping controls
+BOOTSTRAPPING_INTERACTIVE_CONTROLS_ID = "bootstrapping-interactive-controls"
+BOOTSTRAPPING_SPOKE_TOL_ID = "bootstrapping-spoke-tol"
+BOOTSTRAPPING_CIRCLE_TOL_ID = "bootstrapping-circle-tol"
+BOOTSTRAPPING_CIRCLE_POLY_DEGREE_ID = "bootstrapping-circle-poly-degree"
+BOOTSTRAPPING_PARALLEL_WORKERS_ID = "bootstrapping-parallel-workers"
+BOOTSTRAPPING_BTN_ID = "run-bootstrapping-btn"
+RESET_BOOTSTRAPPING_BTN_ID = "reset-bootstrapping-btn"
+BOOTSTRAPPING_STATUS_ID = "bootstrapping-status"

@@ -3,15 +3,14 @@ from __future__ import annotations
 from typing import Optional
 
 import numpy as np
-from dash import Input, Output, State, callback, ctx, no_update, html
+from dash import Input, Output, State, ctx, no_update, html
 from dash.exceptions import PreventUpdate
 import logging
 
 from .. import ids
 from ..server import app
 from pathlib import Path
-from ..plot_utils.plot_nominal import DEFAULT_NOMINAL_PARAMS, nominal_groups_styling
-from ..plot_utils.plot_nominal import fig_nominal_grid
+from ..plot_utils.plot_nominal import DEFAULT_NOMINAL_PARAMS, nominal_groups_styling, fig_nominal_grid
 from ...products import ALL_PRODUCTS
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,6 @@ def _coerce_to_step_and_bounds(val, step: float, minv: float, maxv: float):
         prevent_initial_call=True
     )
 def enforce_edit_nominal_ring(val):
-    print("Triggered enforce_edit_nominal_ring")
     try:
         return _coerce_to_step_and_bounds(val, step=2.5, minv=2.5, maxv=90.0)
     except Exception as e:
@@ -50,7 +48,6 @@ def enforce_edit_nominal_ring(val):
         prevent_initial_call=True
     )
 def enforce_edit_nominal_spoke(val):
-    print("Triggered enforce_edit_nominal_spoke")
     try:
         return _coerce_to_step_and_bounds(val, step=2.5, minv=0.0, maxv=360.0)
     except Exception as e:
@@ -58,7 +55,7 @@ def enforce_edit_nominal_spoke(val):
 
 
 # Callback to reset nominal grid parameters to defaults when "Reset" button is clicked
-@callback(
+@app.callback(
     Output(ids.RING_MAX_DIST_ID, "value"),
     Output(ids.RING_GATE_TOL_R_ID, "value"),
     Output(ids.MIN_RING_GROUP_ID, "value"),
@@ -74,7 +71,6 @@ def enforce_edit_nominal_spoke(val):
 def reset_nominal_parameters(
     n_clicks: int,
 ) -> None:
-    print("Triggered reset_nominal_parameters")
 
     if n_clicks == 0:
         return no_update
@@ -89,11 +85,11 @@ def reset_nominal_parameters(
         DEFAULT_NOMINAL_PARAMS["min_spoke_group"],
     )
 
-@callback(
+@app.callback(
     Output(ids.GRID_GRAPH_ID, "figure", allow_duplicate=True),
-    Output(ids.NOMINAL_ASSIGNMENT_ID, "data"),
-    Output(ids.CONFIRM_NOMINAL_BTN_ID, "disabled"),
-    Output(ids.NOMINAL_STATUS_ID, "children"),
+    Output(ids.NOMINAL_ASSIGNMENT_ID, "data", allow_duplicate=True),
+    Output(ids.CONFIRM_NOMINAL_BTN_ID, "disabled", allow_duplicate=True),
+    Output(ids.NOMINAL_STATUS_ID, "children", allow_duplicate=True),
     # ---------------------
     Input(ids.FIND_NOMINAL_BTN_ID, "n_clicks"),
     # ---------------------
@@ -117,7 +113,6 @@ def find_nominal_grid(
     spoke_gate_tol_theta: Optional[float],
     min_spoke_group: Optional[int],
 ) -> None:
-    print("Triggered find_nominal_grid")
     if n_clicks == 0:
         return no_update
 
@@ -141,10 +136,10 @@ def find_nominal_grid(
     return nominal_fig, nominal_assignment, multiple_conflicts_flag, status
 
 
-@callback(
+@app.callback(
     Output(ids.SELECTION_CONTROL_DIV_ID, "style"),
-    Output(ids.EDIT_NOMINAL_RING_ID, "value"),
-    Output(ids.EDIT_NOMINAL_SPOKE_ID, "value"),
+    Output(ids.EDIT_NOMINAL_RING_ID, "value", allow_duplicate=True),
+    Output(ids.EDIT_NOMINAL_SPOKE_ID, "value", allow_duplicate=True),
     # ---------------------
     Input(ids.GRID_GRAPH_ID, "selectedData"),
     # ---------------------
@@ -154,7 +149,6 @@ def find_nominal_grid(
     prevent_initial_call=True,
 )
 def show_selected_object(selectedData, fig, control_div_style, previous_selection):
-    print("Triggered show_selected_object")
     if selectedData is None or selectedData["points"][0]["customdata"] == previous_selection:
         control_div_style["display"] = "none"
         nominal_ring_value = None
@@ -173,7 +167,7 @@ def show_selected_object(selectedData, fig, control_div_style, previous_selectio
         raise PreventUpdate
     
 
-@callback(
+@app.callback(
     Output(ids.GRID_GRAPH_ID, "figure", allow_duplicate=True),
     Output(ids.CONFIRM_NOMINAL_BTN_ID, "disabled", allow_duplicate=True),
     # ---------------------
@@ -184,14 +178,13 @@ def show_selected_object(selectedData, fig, control_div_style, previous_selectio
     prevent_initial_call=True,
 )
 def highlight_selected_point(selected_point, fig):
-    print("Triggered highlight_selected_point")
     
     fig, multiple_conflicts_flag = nominal_groups_styling(fig, selected_point)
 
     return fig, multiple_conflicts_flag
 
 
-@callback(
+@app.callback(
     Output(ids.SELECTED_GRID_POINT_ID, "data", allow_duplicate=True),
     Output(ids.GRID_GRAPH_ID, "figure", allow_duplicate=True),
     Output(ids.NOMINAL_ASSIGNMENT_ID, "data", allow_duplicate=True),
@@ -207,7 +200,6 @@ def highlight_selected_point(selected_point, fig):
     prevent_initial_call=True,
 )
 def edit_selected_point(nominal_ring_value, nominal_spoke_value, selected_point, previous_selection, fig, nominal_assignment):
-    print(nominal_ring_value, nominal_spoke_value, selected_point, previous_selection)
     if nominal_ring_value is None or nominal_spoke_value is None:
         if previous_selection is not None:
             # If we had a previous selection but now the input is invalid,
@@ -219,8 +211,6 @@ def edit_selected_point(nominal_ring_value, nominal_spoke_value, selected_point,
         raise PreventUpdate
     else:
         selected_point = selected_point["points"][0]["customdata"]
-
-    print("Triggered edit_selected_point")
 
     selected_point["nominal_r"] = nominal_ring_value
     selected_point["nominal_theta"] = nominal_spoke_value
@@ -242,7 +232,7 @@ def edit_selected_point(nominal_ring_value, nominal_spoke_value, selected_point,
     return selected_point, fig, nominal_assignment
 
 
-@callback(
+@app.callback(
     Output(ids.GRID_GRAPH_ID, "figure", allow_duplicate=True),
     Output(ids.NOMINAL_ASSIGNMENT_ID, "data", allow_duplicate=True),
     Output(ids.SHIFT_RINGS_DEC_ID, "disabled"),
@@ -263,7 +253,6 @@ def edit_selected_point(nominal_ring_value, nominal_spoke_value, selected_point,
     prevent_initial_call=True,
 )
 def shift_all_nominals(shift_spokes_dec, shift_spokes_inc, shift_rings_dec, shift_rings_inc, fig, nominal_assignment, edit_ring_value, edit_spoke_value):
-    print("Triggered shift_all_nominals")
     # Check which button was clicked
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
     if button_id == ids.SHIFT_SPOKES_DEC_ID:
@@ -327,7 +316,7 @@ def shift_all_nominals(shift_spokes_dec, shift_spokes_inc, shift_rings_dec, shif
     return fig, nominal_assignment, shift_rings_dec_disabled, shift_rings_inc_disabled, edit_ring_value, edit_spoke_value
 
 
-@callback(
+@app.callback(
     Output(ids.STORE_STEP_RESULT, "data", allow_duplicate=True),
     # ---------------------
     Input(ids.CONFIRM_NOMINAL_BTN_ID, "n_clicks"),

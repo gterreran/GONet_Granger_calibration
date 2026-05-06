@@ -6,7 +6,7 @@ import numpy as np
 import logging
 from .core import make_div_from_fig_dict
 from ..plot_utils.plot_unwrapped import unwrapped_graph
-from dash import dcc, html, Input, Output, State, ctx
+from dash import dcc, html
 from .. import ids
 from ..server import app
 from ...nominal import detect_nominal, DEFAULT_NOMINAL_PARAMS
@@ -20,13 +20,13 @@ class RGBAColor:
     Parameters
     ----------
     r : int
-        Red channel (0–255).
+        Red channel (0-255).
     g : int
-        Green channel (0–255).
+        Green channel (0-255).
     b : int
-        Blue channel (0–255).
+        Blue channel (0-255).
     alpha : float
-        Default alpha channel (0–1).
+        Default alpha channel (0-1).
     """
 
     def __init__(self, r: int, g: int, b: int, alpha: float = 1.0):
@@ -364,12 +364,6 @@ def fig_nominal_grid(params) -> html.Div:
 def initialize_nominal_grid() -> html.Div:
     """
     Build the interactive viewer layout for identifying the nominal values of grid and spokes.
-
-    Parameters
-    ----------
-
-    idx : int
-        The index of the current figure to be displayed.
 
     Returns
     -------
