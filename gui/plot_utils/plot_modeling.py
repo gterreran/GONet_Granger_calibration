@@ -12,11 +12,13 @@ from .. import ids
 from ..server import app
 from ...modeling import DEFAULT_MODELING_PARAMS, GridData, FitResult
 from .plot_bootstrapping import plot_bootstrapping_grid
+from ..session import get_session
 
 logger = logging.getLogger(__name__)
 
 def _load_modeling_params():
-    product = app.server.config["data_files"]["modeling-results"]
+    session = get_session(app)
+    product = session.get("modeling-results")
     default = False
     if product is None:
         default = True
@@ -160,9 +162,10 @@ def modeling_fig(data, result):
     return fig
 
 def plot_modeling_results(_):
-    bootstrapped_nominal_assignment_npz =app.server.config["data_files"]["bootstrapping-grid"]
+    session = get_session(app)
+    bootstrapped_nominal_assignment_npz = session.get("bootstrapping-grid")
     data = GridData.from_npz(bootstrapped_nominal_assignment_npz)
-    model_npz = app.server.config["data_files"]["modeling-results"]
+    model_npz = session.get("modeling-results")
     result = FitResult.from_npz(model_npz)
     model_fig = modeling_fig(data, result)
 

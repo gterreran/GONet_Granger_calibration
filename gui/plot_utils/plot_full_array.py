@@ -11,6 +11,7 @@ from dash import dcc, html
 
 from .core import _weighted_centroid, _robust_limits, _apply_initial_zoom, plot_layout
 from ..server import app
+from ..session import get_session
 
 CHANNEL_COLORS = {
     "red": "red",
@@ -108,7 +109,8 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
     dash component
         html.Div containing the interactive plots.
     """
-    data_files = app.server.config.get("data_files")["full-array"] or []
+    session = get_session(app)
+    data_files = session.get("full-array") or []
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
 

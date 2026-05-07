@@ -11,6 +11,7 @@ from ..plot_utils.plot_grid import _load_grid
 from pathlib import Path
 
 from ...products import ALL_PRODUCTS
+from ..session import get_session
 
 
 logger = logging.getLogger(__name__)
@@ -203,11 +204,12 @@ def update_calibration_figure(pending, confirmed, fig):
     - If no confirmed center: show image + grid + pending/confirmed markers
     - If confirmed center: replace figure with unwrapped grid (θ vs r)
     """
+    session = get_session(app)
     # ----------------------------
     # Case 1: confirmed center → UNWRAPPED VIEW
     # ----------------------------
     if confirmed and confirmed.get("x") is not None and confirmed.get("y") is not None:
-        averaged_grid_path = app.server.config.get("data_files")["averaged-grid"]
+        averaged_grid_path = session.get("averaged-grid")
         logger.info(f"Loading averaged grid from {averaged_grid_path}")
         pts = _load_grid(averaged_grid_path)["grid"]
 
@@ -229,13 +231,12 @@ def update_calibration_figure(pending, confirmed, fig):
         r = r[order]
         pts = pts[order]
 
-        infile = app.server.config["data_files"]["raw-image"][0]  # get the first raw image as input reference
-
-        out_npz = app.server.config["output_dir"] / ALL_PRODUCTS["unwrapped-grid"].path(input_file=Path(infile))
+        session = get_session(app)
+        out_npz = session.expected_path("unwrapped-grid")
         np.savez_compressed(out_npz, idx=idx, theta=theta, r=r, pts=pts, center={"x": cx, "y": cy})
         logger.info(f"Saved unwrapped grid to {out_npz}")
 
-        app.server.config["data_files"]["unwrapped-grid"] = out_npz
+        session.set("unwrapped-grid", out_npz)
 
         result = {
             "step": "unwrapped-grid",

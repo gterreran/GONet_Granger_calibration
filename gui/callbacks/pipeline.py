@@ -7,6 +7,8 @@ from ..steps import ORDERED_STEPS, RUNNABLE_STEPS, STEP_BY_ID
 from ..server import app
 from .. import ids
 
+from ..session import get_session
+
 
 def _empty_outputs():
     """
@@ -74,7 +76,7 @@ def start_step(request):
 
     Batch steps:
         - run immediately
-        - write payload into app.server.config["data_files"]
+        - write payload into the session
         - emit STORE_STEP_RESULT so finalize_step can rebuild the UI
 
     Interactive steps:
@@ -92,14 +94,15 @@ def start_step(request):
 
     spec = STEP_BY_ID[step]
 
+    session = get_session(app)
     if spec.mode == "batch":
 
         out = spec.pipeline_func(
-            app.server.config["data_files"]["raw-image"],
-            app.server.config["output_dir"],
+            session.raw_files,
+            session.output_dir,
         )
 
-        app.server.config["data_files"][step] = out
+        session.set(step, out)
 
         result = {
             "step": step,
@@ -138,7 +141,7 @@ def finalize_step(result, options):
     This is the single shared completion path for both batch and interactive
     steps. Any callback that finishes an interactive workflow should:
 
-        1. write the payload into app.server.config["data_files"][step]
+        1. write the payload into the session (session.set(step, payload))
         2. emit ids.STORE_STEP_RESULT with {"step": step, "status": "completed"}
 
     Parameters
@@ -165,7 +168,8 @@ def finalize_step(result, options):
     step_order = ORDERED_STEPS.index(step)
     disable_buttons_list = [i > step_order+1 for i in range(1,len(ORDERED_STEPS))]
 
-    out = app.server.config["data_files"].get(step)
+    session = get_session(app)
+    out = session.get(step)
 
     if isinstance(out, list):
         new_options = [{"label": p.name, "value": i} for i, p in enumerate(out)]
@@ -180,7 +184,7 @@ def finalize_step(result, options):
     if not isinstance(out, list) and out.name=='':
         disable_options_list[step_order] = True
 
-    app.server.config["data_files"][step] = out
+    session.set(step, out)
 
     status = f"Completed step: {step}"
 

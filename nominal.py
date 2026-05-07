@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 import logging
 import numpy as np
 from scipy.spatial import cKDTree
+from .errors import DetectionError
 
 logger = logging.getLogger(__name__)
 
@@ -529,7 +530,7 @@ def detect_nominal(data, params: dict):
     )
 
     if not np.isfinite(spacing_px) or spacing_px <= 0:
-        raise RuntimeError("Failed to estimate circle spacing in pixels.")
+        raise DetectionError("Failed to estimate circle spacing in pixels.")
 
     logger.info("Estimated circle spacing: %.3f px per %.1f°", spacing_px, DEG_STEP)
 

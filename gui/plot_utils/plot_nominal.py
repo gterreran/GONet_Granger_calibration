@@ -11,6 +11,8 @@ from .. import ids
 from ..server import app
 from ...nominal import detect_nominal, DEFAULT_NOMINAL_PARAMS
 
+from ..session import get_session
+
 logger = logging.getLogger(__name__)
 
 class RGBAColor:
@@ -77,13 +79,16 @@ INTERSECTION_COLOR = RGBAColor(255, 94, 168, 1.0)  # magenta
 COMPONENT_ERROR_COLOR = RGBAColor(255, 0, 0, 0.9)         # red
 
 def _load_unwrapped_grid() -> Optional[Dict[str, np.ndarray]]:
-    logger.info(f"Loading unwrapped grid data from {app.server.config['data_files']['unwrapped-grid']}...")
-    data = np.load(app.server.config["data_files"]["unwrapped-grid"], allow_pickle=True)
+    session = get_session(app)
+    unwrapped_grid_path = session.get("unwrapped-grid")
+    logger.info(f"Loading unwrapped grid data from {unwrapped_grid_path}...")
+    data = np.load(unwrapped_grid_path, allow_pickle=True)
     return data
 
 
 def _load_nominal_params() -> Dict[str, np.ndarray]:
-    product = app.server.config["data_files"]["nominal-grid"]
+    session = get_session(app)
+    product = session.get("nominal-grid")
     default = False
     if product is None:
         default = True
@@ -439,8 +444,8 @@ def overplot_annotated_nominal_groups(
     return fig
 
 def plot_nominal_grid(_) -> html.Div:
-
-    product = app.server.config["data_files"]["nominal-grid"]
+    session = get_session(app)
+    product = session.get("nominal-grid")
     nominal_assignment = np.load(product, allow_pickle=True)["data"]
 
     data = _load_unwrapped_grid()
@@ -456,8 +461,8 @@ def plot_nominal_grid(_) -> html.Div:
     return nominal_div
 
 def fig_nominal_grid(params) -> html.Div:
-
-    unwrapped_file = app.server.config["data_files"]["unwrapped-grid"]
+    session = get_session(app)
+    unwrapped_file = session.get("unwrapped-grid")
 
     logger.info(f"Loading unwrapped grid data from {unwrapped_file}...")
     data = np.load(unwrapped_file, allow_pickle=True)

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from typing import Iterable, List, Dict, Any
+from .errors import PipelineStepError
 
 
 class ProductKind(Enum):
@@ -96,6 +97,11 @@ def discover_products(
         For singleton products, the list has length 0 or 1.
         For per-input products, the list may contain multiple files.
     """
+    input_files = [Path(p) for p in input_files]
+
+    if not input_files:
+        raise PipelineStepError("discover_products requires at least one input file.")
+    
     outdir = Path(outdir)
 
     results: Dict[str, Any] = {}

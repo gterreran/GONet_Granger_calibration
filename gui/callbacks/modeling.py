@@ -12,6 +12,7 @@ from pathlib import Path
 from ..plot_utils.plot_modeling import DEFAULT_MODELING_PARAMS, modeling_fig
 from ...modeling import model_nominal_grid, make_report
 from ...products import ALL_PRODUCTS
+from ..session import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +76,14 @@ def bootstrap_grid(
         "outlier-rejection-sigma": sigma_rejection,
     })
 
-    bootstrapped_nominal_assignment_npz =app.server.config["data_files"]["bootstrapping-grid"]
-    
+    session = get_session(app)
+    bootstrapped_nominal_assignment_npz = session.get("bootstrapping-grid")
     result, model, data = model_nominal_grid(bootstrapped_nominal_assignment_npz, params)
 
     if "generate" in (pdf_report_checklist or []):
         logger.info(f"\nWriting PDF report.")
         make_report(
-            pdf_path=app.server.config["output_dir"] / "modeling_report.pdf",
+            pdf_path=session.output_dir / "modeling_report.pdf",
             data=data,
             pred_sym=result.pred_sym,
             pred_full=result.pred_full,
@@ -97,8 +98,7 @@ def bootstrap_grid(
 
     model_fig = modeling_fig(data, result)
 
-    infile = app.server.config["data_files"]["raw-image"][0]  # get the first raw image as input reference
-    out_npz=Path(app.server.config["output_dir"]) / ALL_PRODUCTS["modeling-results"].path(input_file=infile)
+    out_npz = session.expected_path("modeling-results")
 
     logger.info(f"Saved nominal grid data to: {out_npz}")
     np.savez_compressed(
@@ -125,7 +125,7 @@ def bootstrap_grid(
         outlier_threshold_px=np.array(-1.0 if result.outlier_threshold_px is None else result.outlier_threshold_px),
     )
 
-    app.server.config["data_files"]["modeling-results"] = out_npz
+    session.set("modeling-results", out_npz)
 
     result = {
         "step": "modeling-results",

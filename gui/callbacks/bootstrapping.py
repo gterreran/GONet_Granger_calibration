@@ -12,6 +12,7 @@ from pathlib import Path
 from ..plot_utils.plot_bootstrapping import DEFAULT_BOOSTRAPPING_PARAMS, bootstrapping_fig
 from ...bootstrapping import bootstrapping_from_nominal
 from ...products import ALL_PRODUCTS
+from ..session import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +75,10 @@ def bootstrap_grid(
         "max_workers": max_workers,
     })
 
-    nominal_assignment_npz =app.server.config["data_files"]["nominal-grid"]
-    averaged_grid_npz = app.server.config["data_files"]["averaged-grid"]
-    center_xy = np.load(app.server.config["data_files"]["unwrapped-grid"], allow_pickle=True)["center"].item()
+    session = get_session(app)
+    nominal_assignment_npz = session.get("nominal-grid")
+    averaged_grid_npz = session.get("averaged-grid")
+    center_xy = np.load(session.get("unwrapped-grid"), allow_pickle=True)["center"].item()
     bootstrapped_nominal_assignment = bootstrapping_from_nominal(nominal_assignment_npz, averaged_grid_npz, center_xy, params)
 
     nominal_fig, multiple_conflicts_flag = bootstrapping_fig()
@@ -86,13 +88,12 @@ def bootstrap_grid(
         html.Div(f"Spokes found: {len(set([a['spoke_index'] for a in bootstrapped_nominal_assignment]))}"),
     ]
 
-    infile = app.server.config["data_files"]["raw-image"][0]  # get the first raw image as input reference
-    out_npz=Path(app.server.config["output_dir"]) / ALL_PRODUCTS["bootstrapping-grid"].path(input_file=infile)
+    out_npz = session.expected_path("bootstrapping-grid")
 
     logger.info(f"Saved nominal grid data to: {out_npz}")
     np.savez_compressed(out_npz, data=bootstrapped_nominal_assignment, params=params)
 
-    app.server.config["data_files"]["bootstrapping-grid"] = out_npz
+    session.set("bootstrapping-grid", out_npz)
 
     result = {
         "step": "bootstrapping-grid",

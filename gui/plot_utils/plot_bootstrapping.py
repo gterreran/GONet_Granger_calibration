@@ -12,10 +12,13 @@ from ..server import app
 from ...bootstrapping import DEFAULT_BOOSTRAPPING_PARAMS
 from .plot_nominal import _load_unwrapped_grid, overplot_annotated_nominal_groups, nominal_groups_styling
 
+from ..session import get_session
+
 logger = logging.getLogger(__name__)
 
 def _load_bootstrapping_params() -> Dict[str, np.ndarray]:
-    product = app.server.config["data_files"]["bootstrapping-grid"]
+    session = get_session(app)
+    product = session.get("bootstrapping-grid")
     default = False
     if product is None:
         default = True
@@ -32,9 +35,10 @@ def _load_bootstrapping_params() -> Dict[str, np.ndarray]:
     return params
 
 def bootstrapping_fig():
-    product = app.server.config["data_files"]["bootstrapping-grid"]
+    session = get_session(app)
+    product = session.get("bootstrapping-grid")
     if product is None:
-        product = app.server.config["data_files"]["nominal-grid"]
+        product = session.get("nominal-grid")
     nominal_assignment = np.load(product, allow_pickle=True)["data"]
 
     data = _load_unwrapped_grid()
@@ -70,8 +74,8 @@ def initialize_bootstrapping_grid():
     params = _load_bootstrapping_params()
 
     nominal_div = plot_bootstrapping_grid(None)
-
-    nominal_assignment = np.load(app.server.config["data_files"]["nominal-grid"], allow_pickle=True)["data"]
+    session = get_session(app)
+    nominal_assignment = np.load(session.get("nominal-grid"), allow_pickle=True)["data"]
 
     n_rings = len(set([a["circle_index"] for a in nominal_assignment]))
     n_spokes = len(set([a["spoke_index"] for a in nominal_assignment]))

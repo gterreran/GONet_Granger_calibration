@@ -9,6 +9,8 @@ import numpy as np
 
 from .core import make_div_from_fig_dict, plot_layout, reset_layout
 
+from ..session import get_session
+
 logger = logging.getLogger(__name__)
 
 def unwrapped_graph(theta, r, idx, alpha=1.0) -> dict:
@@ -54,7 +56,8 @@ def unwrapped_graph(theta, r, idx, alpha=1.0) -> dict:
 
 
 def plot_unwrapped_grid(_) -> html.Div:
-    product = app.server.config["data_files"]["unwrapped-grid"]
+    session = get_session(app)
+    product = session.get("unwrapped-grid")
     
     logger.info(f"Loading unwrapped grid data from '{product}'...")
     data = np.load(product, allow_pickle=True)

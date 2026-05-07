@@ -42,6 +42,7 @@ from scipy.interpolate import splprep, splev
 from scipy.spatial import cKDTree
 
 logger = logging.getLogger(__name__)
+from .errors import DetectionError
 
 # -----------------------------------------------------------------------------
 # Internal tuning constants
@@ -111,7 +112,7 @@ class DenseGrid:
         """
         grid = np.asarray(data, dtype=float)
         if grid.ndim != 2 or grid.shape[1] != 2:
-            raise ValueError("Dense grid must have shape (N, 2).")
+            raise DetectionError("Dense grid must have shape (N, 2).")
 
         return cls(
             idx=np.arange(grid.shape[0], dtype=int),
@@ -200,7 +201,7 @@ class GridData:
         """Append a new assigned point."""
         idx = int(idx)
         if idx in self._idx_map:
-            raise ValueError(f"Element with idx={idx} already exists.")
+            raise DetectionError(f"Element with idx={idx} already exists.")
 
         self.idx = np.append(self.idx, idx)
         self.x = np.append(self.x, float(x))
@@ -334,13 +335,13 @@ def unit_direction_from_seed(x: np.ndarray, y: np.ndarray, center_xy: np.ndarray
     valid = norms > 0
 
     if not np.any(valid):
-        raise ValueError("Cannot infer spoke direction from empty/non-finite seed set.")
+        raise DetectionError("Cannot infer spoke direction from empty/non-finite seed set.")
 
     mean_vec = np.mean(rel[valid] / norms[valid, None], axis=0)
     norm = np.hypot(mean_vec[0], mean_vec[1])
 
     if norm == 0:
-        raise ValueError("Degenerate spoke direction.")
+        raise DetectionError("Degenerate spoke direction.")
 
     return mean_vec / norm
 
@@ -398,13 +399,13 @@ def fit_parametric_spoke_spline(
 ):
     """Fit a parametric spline through spoke samples."""
     if x.size < 4:
-        raise ValueError("Need at least 4 points to fit a spline.")
+        raise DetectionError("Need at least 4 points to fit a spline.")
 
     ds = np.hypot(np.diff(x), np.diff(y))
     t = np.concatenate([[0.0], np.cumsum(ds)])
 
     if t[-1] == 0:
-        raise ValueError("Degenerate seed geometry.")
+        raise DetectionError("Degenerate seed geometry.")
 
     u = t / t[-1]
     k = min(int(spline_order), x.size - 1)
@@ -489,7 +490,7 @@ def get_inner_endpoint(
         pts = np.column_stack([all_x[mask], all_y[mask]])
         return pts[idx], float(np.max(all_s[mask]))
 
-    raise ValueError("side must be 'main' or 'opp'.")
+    raise DetectionError("side must be 'main' or 'opp'.")
 
 
 def get_outer_endpoint(
@@ -511,7 +512,7 @@ def get_outer_endpoint(
         pts = np.column_stack([all_x[mask], all_y[mask]])
         return pts[idx], float(np.min(all_s[mask]))
 
-    raise ValueError("side must be 'main' or 'opp'.")
+    raise DetectionError("side must be 'main' or 'opp'.")
 
 
 def estimate_inner_cutoff_pix(
@@ -708,7 +709,7 @@ def bootstrap_spoke_pair(
     mask_opp = nominal_points.theta_nom_deg == opposite_deg
 
     if np.sum(mask_main) < 2 or np.sum(mask_opp) < 2:
-        raise ValueError(f"Not enough nominal seeds for spoke {spoke_deg:.1f}.")
+        raise DetectionError(f"Not enough nominal seeds for spoke {spoke_deg:.1f}.")
 
     x_seed, y_seed, s_seed, axis_u = order_seed_points(
         nominal_points.x[mask_main],
@@ -917,7 +918,7 @@ def fit_spoke_radius_to_nominal_r(
     """
     valid = mask & np.isfinite(nominal_points.r_nom_deg)
     if np.sum(valid) < 3:
-        raise ValueError("Not enough points to fit spoke radius model.")
+        raise DetectionError("Not enough points to fit spoke radius model.")
 
     r_pix = point_radius_from_center(nominal_points.x[valid], nominal_points.y[valid], center_xy)
     r_nom = nominal_points.r_nom_deg[valid]
@@ -1363,7 +1364,7 @@ def bootstrapping_from_nominal(nominal_assignment_npz, averaged_grid_npz, center
                 if nominal_points.has_idx(int(idx)):
                     existing = nominal_points.get_theta(int(idx))
                     if np.isfinite(existing) and not np.isclose(existing, theta):
-                        raise ValueError(
+                        raise DetectionError(
                             f"Assigned spoke angle {theta} does not match existing "
                             f"nominal angle {existing} for idx={idx}."
                         )
@@ -1384,7 +1385,7 @@ def bootstrapping_from_nominal(nominal_assignment_npz, averaged_grid_npz, center
         mask = nominal_points.theta_nom_deg == spoke_deg
         try:
             spoke_model = fit_spoke_radius_to_nominal_r(nominal_points, mask, center_xy, params["circle_fit_poly_degree"])
-        except ValueError:
+        except (ValueError, DetectionError):
             continue
 
         distances = point_radius_from_center(nominal_points.x[mask], nominal_points.y[mask], center_xy)

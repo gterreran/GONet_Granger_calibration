@@ -4,6 +4,7 @@ from GONet_Wizard.ui.api import WebviewAPI # type: ignore
 from .logging_utils import configure_gui_logging 
 from ..pipeline import make_output_dir
 from ..products import discover_products
+from .session import CalibrationSession
 
 def run_app(debug=False):
     # Configure logging interception BEFORE importing code that logs
@@ -17,8 +18,8 @@ def run_app(debug=False):
         flask.cli.show_server_banner = lambda *args, **kwargs: None
 
     # Set up the app layout and callbacks
-    from .layout import layout
-    app.layout = layout
+    from .layout import build_layout
+    app.layout = build_layout()
 
     from . import callbacks  # noqa: F401
 
@@ -26,15 +27,15 @@ def run_app(debug=False):
 
 
 def launch_extraction_gui(data_files, outdir=None, debug=False):
-    
-    # Prepare output directory
     if outdir is None or outdir == "":
         outdir = "grid_calibration_output"
-    app.server.config["output_dir"] = make_output_dir(outdir)
 
-    # Make data_files available to the Dash server
-    app.server.config["data_files"] = {"raw-image": data_files}
-    app.server.config["data_files"].update(discover_products(data_files, outdir))
+    output_dir = make_output_dir(outdir)
+
+    app.server.config["session"] = CalibrationSession.from_inputs(
+        raw_files=data_files,
+        output_dir=output_dir,
+    )
 
     # Start Dash server in a background thread
     dash_thread = threading.Thread(

@@ -57,6 +57,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.optimize import least_squares
+from .errors import ProductLoadError, ModelingError
 
 logger = logging.getLogger(__name__)
 
@@ -121,11 +122,11 @@ class GridData:
     def from_npz(cls, path: Path) -> "GridData":
         """Load grid data from an ``.npz`` file."""
         if not path.exists():
-            raise FileNotFoundError(f"Input file not found: {path}")
+            raise ProductLoadError(f"Input file not found: {path}")
 
         loaded = np.load(path, allow_pickle=True)
         if "data" not in loaded:
-            raise KeyError(f"Input file does not contain a 'data' entry: {path}")
+            raise ProductLoadError(f"Input file does not contain a 'data' entry: {path}")
 
         raw = loaded["data"]
         if isinstance(raw, np.ndarray):
@@ -133,7 +134,7 @@ class GridData:
         if isinstance(raw, dict):
             raw = [raw]
         if not isinstance(raw, list) or not raw:
-            raise ValueError("The 'data' entry must contain a non-empty list of dictionaries.")
+            raise ProductLoadError("The 'data' entry must contain a non-empty list of dictionaries.")
 
         try:
             idx = np.array([row.get("idx", i) for i, row in enumerate(raw)], dtype=int)
@@ -144,7 +145,7 @@ class GridData:
             r_nom_deg = np.array([row["nominal_r"] for row in raw], dtype=float)
             theta_nom_deg = np.array([row["nominal_theta"] for row in raw], dtype=float)
         except Exception as exc:  # noqa: BLE001
-            raise ValueError("Could not parse required keys from the 'data' list.") from exc
+            raise ProductLoadError("Could not parse required keys from the 'data' list.") from exc
 
         finite = (
             np.isfinite(x)
@@ -362,7 +363,7 @@ class FitResult:
     def from_npz(cls, path: Path) -> "FitResult":
         """Load a fit result from a compressed ``.npz`` file."""
         if not path.exists():
-            raise FileNotFoundError(f"Fit result file not found: {path}")
+            raise ProductLoadError(f"Fit result file not found: {path}")
 
         loaded = np.load(path, allow_pickle=True)
 

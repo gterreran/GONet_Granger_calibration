@@ -6,6 +6,7 @@ from .core import _weighted_centroid, _robust_limits, _apply_initial_zoom, color
 from ..server import app
 from .. import ids
 from pathlib import Path
+from ..session import get_session
 
 # Server-side cache: filepath -> channel -> float32 2D array
 _GRID_CACHE: Dict[str, Dict[str, np.ndarray]] = {}
@@ -28,7 +29,8 @@ def plot_grid_array(
     dragmode: str = "pan",
     cut: bool = False,
 ) -> html.Div:
-    data_files = app.server.config.get("data_files")["full-array"] or []
+    session = get_session(app)
+    data_files = session.get("full-array") or []
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
 
@@ -93,9 +95,9 @@ def plot_grid_array(
 
     # --- Load grid points layer
     if average:
-        grid_npz_path = Path(app.server.config.get("data_files")["averaged-grid"])
+        grid_npz_path = session.get("averaged-grid")
     else:
-        grid_files = app.server.config.get("data_files")["grid-points"] or []
+        grid_files = session.get("grid-points") or []
         if not grid_files:
             return html.Div("No grid files loaded.", style={"color": "crimson"})
         if idx < 0 or idx >= len(grid_files):

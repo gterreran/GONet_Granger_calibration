@@ -12,6 +12,8 @@ from ..server import app
 from pathlib import Path
 from ..plot_utils.plot_nominal import DEFAULT_NOMINAL_PARAMS, nominal_groups_styling, fig_nominal_grid
 from ...products import ALL_PRODUCTS
+from ...errors import InvalidCalibrationError
+from ..session import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ def _coerce_to_step_and_bounds(val, step: float, minv: float, maxv: float):
     try:
         v = float(val)
     except (TypeError, ValueError):
-        raise ValueError(f"Invalid input value: {val}")
+        raise InvalidCalibrationError(f"Invalid input value: {val}")
     v = max(minv, min(maxv, v))
     v = round(v / step) * step
     return v
@@ -359,13 +361,12 @@ def save_current_nominal_grid(
         "min_spoke_group": min_spoke_group,
     })
 
-    infile = app.server.config["data_files"]["raw-image"][0]  # get the first raw image as input reference
-
-    out_npz=Path(app.server.config["output_dir"]) / ALL_PRODUCTS["nominal-grid"].path(input_file=infile)
+    session = get_session(app)
+    out_npz = session.expected_path("nominal-grid")
     logger.info(f"Saved nominal grid data to: {out_npz}")
     np.savez_compressed(out_npz, data=nominal_assignment, params=params)
 
-    app.server.config["data_files"]["nominal-grid"] = out_npz
+    session.set("nominal-grid", out_npz)
 
     result = {
         "step": "nominal-grid",
