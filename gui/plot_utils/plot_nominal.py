@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import logging
-from .core import make_div_from_fig_dict
+from .core import make_div_from_fig_dict, reset_layout
 from ..plot_utils.plot_unwrapped import unwrapped_graph
 from dash import dcc, html
 from .. import ids
@@ -197,6 +197,69 @@ def nominal_groups_styling(fig, selected_point=None):
 
     return fig, mulitple_rings_flag or mulitple_spokes_flag
 
+def _unwrap_theta_for_display(theta, idx=None, split_deg=180.0):
+    """
+    Unwrap one theta group for display only.
+
+    Returns
+    -------
+    theta_display : np.ndarray
+        Possibly shifted theta values.
+    shifted_idx : set
+        Point indices whose theta was shifted.
+    shift : float
+        Applied shift: -360, 0, or +360.
+    """
+    theta = np.asarray(theta, dtype=float).copy()
+
+    if idx is None:
+        idx = np.arange(theta.size)
+    idx = np.asarray(idx)
+
+    if theta.size < 2:
+        return theta, set(), 0.0
+
+    if np.nanmax(theta) - np.nanmin(theta) < split_deg:
+        return theta, set(), 0.0
+
+    low = theta < split_deg
+    high = theta >= split_deg
+
+    if np.sum(high) >= np.sum(low):
+        theta[low] += 360.0
+        return theta, set(idx[low]), 360.0
+    else:
+        theta[high] -= 360.0
+        return theta, set(idx[high]), -360.0
+
+def _shift_background_points_by_idx(fig, shifted_idx, shift):
+    """
+    Apply the same display-only theta shift to fig['data'][0] points.
+    """
+    if not shifted_idx or shift == 0:
+        return fig
+
+    x = np.asarray(fig["data"][0]["x"], dtype=float).copy()
+    customdata = fig["data"][0].get("customdata", None)
+
+    if customdata is None:
+        return fig
+
+    # Supports either list of idx values or list/dict customdata entries.
+    point_idx = []
+    for item in customdata:
+        if isinstance(item, dict):
+            point_idx.append(item.get("idx", None))
+        else:
+            point_idx.append(item)
+
+    point_idx = np.asarray(point_idx)
+    mask = np.isin(point_idx, list(shifted_idx))
+
+    x[mask] += shift
+    fig["data"][0]["x"] = x.tolist()
+
+    return fig
 
 def overplot_annotated_nominal_groups(
     fig: dict,
@@ -211,9 +274,16 @@ def overplot_annotated_nominal_groups(
         if i not in intersections_indexes:
             intersections_indexes.add(i)
         if i not in groups_theta:
-            groups_theta[i] = {"circle_index": el["circle_index"], "nominal_r": el["nominal_r"], "theta": [], "r": []}
+            groups_theta[i] = {
+                "circle_index": el["circle_index"],
+                "nominal_r": el["nominal_r"],
+                "theta": [],
+                "r": [],
+                "idx": []
+            }
         groups_theta[i]["theta"].append(el["theta"])
         groups_theta[i]["r"].append(el["r"])
+        groups_theta[i]["idx"].append(el["idx"])
 
     groups_spoke = {}
     for el in nominal_assignment:
@@ -221,20 +291,57 @@ def overplot_annotated_nominal_groups(
         if i not in intersections_indexes:
             intersections_indexes.add(i)
         if i not in groups_spoke:
-            groups_spoke[i] = {"spoke_index": el["spoke_index"], "nominal_theta": el["nominal_theta"], "theta": [], "r": []}
+            groups_spoke[i] = {
+                "spoke_index": el["spoke_index"],
+                "nominal_theta": el["nominal_theta"],
+                "theta": [],
+                "r": [],
+                "idx": []
+            }
         groups_spoke[i]["theta"].append(el["theta"])
         groups_spoke[i]["r"].append(el["r"])
+        groups_spoke[i]["idx"].append(el["idx"])
 
-    fig['data'][0]['x'] = [fig['data'][0]['x'][i] for i in range(len(fig['data'][0]['x'])) if i not in intersections_indexes]
-    fig['data'][0]['y'] = [fig['data'][0]['y'][i] for i in range(len(fig['data'][0]['y'])) if i not in intersections_indexes]
-    fig['data'][0]['marker']["opacity"] = 0.5
+    keep = [i for i in range(len(fig["data"][0]["x"])) if i not in intersections_indexes]
+
+    fig["data"][0]["x"] = [fig["data"][0]["x"][i] for i in keep]
+    fig["data"][0]["y"] = [fig["data"][0]["y"][i] for i in keep]
+
+    if "customdata" in fig["data"][0]:
+        fig["data"][0]["customdata"] = [fig["data"][0]["customdata"][i] for i in keep]
+
+    fig["data"][0]["marker"]["opacity"] = 0.5
+
+    # Determine display-only theta shifts from spoke groups first.
+    theta_display_shift_by_idx = {}
+
+    for g in groups_spoke.values():
+        ordered = np.argsort(g["r"])
+        x_raw = np.array(g["theta"])[ordered]
+        idx = np.array(g["idx"])[ordered]
+
+        _, shifted_idx, shift = _unwrap_theta_for_display(x_raw, idx=idx)
+
+        for point_idx in shifted_idx:
+            theta_display_shift_by_idx[int(point_idx)] = shift
+
+        fig = _shift_background_points_by_idx(fig, shifted_idx, shift)
 
     # --- plot and annotate rings ---
     for i in sorted(groups_theta.keys()):
         g = groups_theta[i]
-        ordered = np.argsort(g["theta"])
-        x = np.array(g["theta"])[ordered]
-        y = np.array(g["r"])[ordered]
+        theta = np.array(g["theta"], dtype=float)
+        idx = np.array(g["idx"], dtype=int)
+
+        x = np.array([
+            t + theta_display_shift_by_idx.get(int(point_idx), 0.0)
+            for t, point_idx in zip(theta, idx)
+        ], dtype=float)
+        y = np.array(g["r"], dtype=float)
+
+        ordered = np.argsort(x)
+        x = x[ordered]
+        y = y[ordered]
 
         fig["data"].append({
             "type": "scatter",
@@ -268,9 +375,16 @@ def overplot_annotated_nominal_groups(
     # --- plot and annotate spokes ---
     for i in sorted(groups_spoke.keys()):
         g = groups_spoke[i]
+
         ordered = np.argsort(g["r"])
-        x = np.array(g["theta"])[ordered]
+        x_raw = np.array(g["theta"])[ordered]
         y = np.array(g["r"])[ordered]
+        idx = np.array(g["idx"])[ordered]
+
+        x = np.array([
+            t + theta_display_shift_by_idx.get(int(point_idx), 0.0)
+            for t, point_idx in zip(x_raw, idx)
+        ], dtype=float)
 
         fig["data"].append({
             "type": "scatter",
@@ -306,7 +420,10 @@ def overplot_annotated_nominal_groups(
     fig["data"].append({
         "type": "scatter",
         "mode": "markers",
-        "x": [el["theta"] for el in nominal_assignment],
+        "x": [
+            el["theta"] + theta_display_shift_by_idx.get(int(el["idx"]), 0.0)
+            for el in nominal_assignment
+        ],
         "y": [el["r"] for el in nominal_assignment],
         "marker": {"size": 5, "color": str(INTERSECTION_COLOR), "symbol": "o"},
         "customdata": nominal_assignment,
@@ -328,12 +445,12 @@ def plot_nominal_grid(_) -> html.Div:
 
     data = _load_unwrapped_grid()
 
-    fig = unwrapped_graph(data["theta"], data["r"])
+    fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
 
     fig = overplot_annotated_nominal_groups(fig, nominal_assignment)
 
     nominal_fig, multiple_conflicts_flag = nominal_groups_styling(fig)
-
+    nominal_fig = reset_layout(nominal_fig)
     nominal_div = make_div_from_fig_dict(nominal_fig)
 
     return nominal_div
@@ -347,7 +464,7 @@ def fig_nominal_grid(params) -> html.Div:
 
     nominal_assignment = detect_nominal(data, params)
 
-    fig = unwrapped_graph(data["theta"], data["r"])
+    fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
     nominal_fig = overplot_annotated_nominal_groups(fig, nominal_assignment)
 
     nominal_fig, multiple_conflicts_flag = nominal_groups_styling(nominal_fig)

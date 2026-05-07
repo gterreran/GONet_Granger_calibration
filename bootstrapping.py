@@ -1289,7 +1289,7 @@ def build_output_records(nominal_points: GridData, center_xy: np.ndarray) -> lis
         x = float(nominal_points.x[pos])
         y = float(nominal_points.y[pos])
         r = float(point_radius_from_center(x, y, center_xy))
-        theta = float((np.degrees(np.arctan2(-(y - center_xy[1]), x - center_xy[0])) + 360.0) % 360.0)
+        theta = float((np.degrees(np.arctan2(y - center_xy[1], x - center_xy[0])) + 360.0) % 360.0)
 
         data.append(
             {

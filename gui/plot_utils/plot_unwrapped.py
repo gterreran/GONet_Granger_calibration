@@ -7,11 +7,11 @@ from .. import ids
 from ..server import app
 import numpy as np
 
-from .core import make_div_from_fig_dict, plot_layout
+from .core import make_div_from_fig_dict, plot_layout, reset_layout
 
 logger = logging.getLogger(__name__)
 
-def unwrapped_graph(theta, r, alpha=1.0) -> dict:
+def unwrapped_graph(theta, r, idx, alpha=1.0) -> dict:
     layout = {**plot_layout,
         "margin": {"l": 50, "r": 10, "t": 40, "b": 50},
         "height": 520,
@@ -36,6 +36,7 @@ def unwrapped_graph(theta, r, alpha=1.0) -> dict:
                 "mode": "markers",
                 "x": theta,
                 "y": r,
+                "customdata": idx,
                 "marker": {
                     "size": 3,
                     "opacity": alpha,
@@ -57,8 +58,8 @@ def plot_unwrapped_grid(_) -> html.Div:
     
     logger.info(f"Loading unwrapped grid data from '{product}'...")
     data = np.load(product, allow_pickle=True)
-    fig = unwrapped_graph(data["theta"], data["r"])
-
+    fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
+    fig = reset_layout(fig)
     unwrapped_div = make_div_from_fig_dict(fig)
 
     return unwrapped_div

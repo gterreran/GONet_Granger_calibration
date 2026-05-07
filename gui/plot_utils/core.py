@@ -43,6 +43,22 @@ plot_layout = {
     },
 }
 
+def reset_layout(fig):
+    for ax in ("xaxis", "yaxis"):
+        fig["layout"].setdefault(ax, {})
+
+        fig["layout"][ax].pop("range", None)
+        fig["layout"][ax].pop("scaleanchor", None)
+        fig["layout"][ax].pop("scaleratio", None)
+        fig["layout"][ax].pop("matches", None)
+        fig["layout"][ax].pop("constrain", None)
+        fig["layout"][ax].pop("constraintoward", None)
+
+        fig["layout"][ax]["autorange"] = True
+
+    fig["layout"].pop("aspectmode", None)
+    
+    return fig
 
 
 def _weighted_centroid(img: np.ndarray, lo=70.0, hi=99.7) -> tuple[float, float]:

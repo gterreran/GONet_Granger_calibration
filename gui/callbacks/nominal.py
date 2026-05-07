@@ -346,7 +346,10 @@ def save_current_nominal_grid(
     if n_clicks == 0:
         return no_update
     
-    params ={
+    # copy DEFAULT_NOMINAL_PARAMS to params and replace values
+    # with the ones from the inputs
+    params = DEFAULT_NOMINAL_PARAMS.copy()
+    params.update({
         "ring_max_dist": ring_max_dist,
         "ring_gate_tol_r": ring_gate_tol_r,
         "min_ring_group": min_ring_group,
@@ -354,7 +357,7 @@ def save_current_nominal_grid(
         "spoke_min_dist": spoke_min_dist,
         "spoke_gate_tol_theta": spoke_gate_tol_theta,
         "min_spoke_group": min_spoke_group,
-    }
+    })
 
     infile = app.server.config["data_files"]["raw-image"][0]  # get the first raw image as input reference
 

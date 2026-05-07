@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict
 
 import numpy as np
 import logging
-from .core import make_div_from_fig_dict
+from .core import make_div_from_fig_dict, reset_layout
 from ..plot_utils.plot_unwrapped import unwrapped_graph
-from dash import dcc, html, Input, Output, State, ctx
+from dash import dcc, html
 from .. import ids
 from ..server import app
 from ...bootstrapping import DEFAULT_BOOSTRAPPING_PARAMS
@@ -39,7 +39,7 @@ def bootstrapping_fig():
 
     data = _load_unwrapped_grid()
 
-    fig = unwrapped_graph(data["theta"], data["r"])
+    fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
 
     fig = overplot_annotated_nominal_groups(fig, nominal_assignment)
 
@@ -50,7 +50,7 @@ def bootstrapping_fig():
 def plot_bootstrapping_grid(_) -> html.Div:
 
     nominal_fig, multiple_conflicts_flag = bootstrapping_fig()
-
+    nominal_fig = reset_layout(nominal_fig)
     nominal_div = make_div_from_fig_dict(nominal_fig)
 
     return nominal_div

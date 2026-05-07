@@ -74,3 +74,13 @@ BOOTSTRAPPING_PARALLEL_WORKERS_ID = "bootstrapping-parallel-workers"
 BOOTSTRAPPING_BTN_ID = "run-bootstrapping-btn"
 RESET_BOOTSTRAPPING_BTN_ID = "reset-bootstrapping-btn"
 BOOTSTRAPPING_STATUS_ID = "bootstrapping-status"
+
+# Modeling controls
+MODELING_INTERACTIVE_CONTROLS_ID = "modeling-interactive-controls"
+MODELING_RADIAL_DEGREE_ID = "modeling-radial-degree"
+MODELING_HARMONIC_RADIAL_DEGREE_ID = "modeling-harmonic-radial-degree"
+MODELING_HARMONIC_ORDER_ID = "modeling-harmonic-order"
+MODELING_SIGMA_REJECTION_ID = "modeling-sigma-rejection"
+MODELING_BTN_ID = "run-modeling-btn"
+RESET_MODELING_BTN_ID = "reset-modeling-btn"
+MODELING_PDF_REPORT_CHECKLIST_ID = "modeling-pdf-report-checklist"

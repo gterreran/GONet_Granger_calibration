@@ -17,7 +17,9 @@ from .plot_utils import (
     plot_nominal_grid,
     initialize_nominal_grid,
     plot_bootstrapping_grid,
-    initialize_bootstrapping_grid
+    initialize_bootstrapping_grid,
+    plot_modeling_results,
+    initialize_modeling_results
 )
 
 StepMode = Literal["batch", "interactive"]
@@ -120,6 +122,18 @@ STEPS = [
         viewer_func=plot_bootstrapping_grid,
         enabled_if=lambda df: bool(df.get("nominal-grid")),
         clickable_if=lambda df: bool(df.get("bootstrapping-grid")),
+    ),
+    StepSpec(
+        step="modeling-results",
+        label="modeling",
+        option_kind="label",
+        mode="interactive",
+        order=7,
+        button_label="7. modeling",
+        initialize_interactive_state=initialize_modeling_results,
+        viewer_func=plot_modeling_results,
+        enabled_if=lambda df: bool(df.get("bootstrapping-grid")),
+        clickable_if=lambda df: bool(df.get("modeling-results")),
     ),
 ]
 
