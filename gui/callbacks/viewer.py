@@ -4,7 +4,7 @@ from dash import Input, Output, ALL, no_update
 
 from ..server import app
 from .. import ids
-from ..steps import VIEWER_FUNCS, ORDERED_STEPS
+from ..workflow.registry import VIEWER_FUNCS, ORDERED_STEPS
 
 
 @app.callback(

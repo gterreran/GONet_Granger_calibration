@@ -1,10 +1,11 @@
+# grid_calibration_extraction/gui/app.py
+
 from .server import app
 import threading, webview, logging
 from GONet_Wizard.ui.api import WebviewAPI # type: ignore
 from .logging_utils import configure_gui_logging 
-from ..pipeline import make_output_dir
-from ..products import discover_products
 from .session import CalibrationSession
+from pathlib import Path
 
 def run_app(debug=False):
     # Configure logging interception BEFORE importing code that logs
@@ -26,11 +27,12 @@ def run_app(debug=False):
     app.run_server(port=8050, debug=debug, use_reloader=False)
 
 
-def launch_extraction_gui(data_files, outdir=None, debug=False):
-    if outdir is None or outdir == "":
-        outdir = "grid_calibration_output"
+def launch_extraction_gui(data_files, output_dir=None, debug=False):
+    if output_dir is None or output_dir == "":
+        output_dir = "grid_calibration_output"
 
-    output_dir = make_output_dir(outdir)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     app.server.config["session"] = CalibrationSession.from_inputs(
         raw_files=data_files,

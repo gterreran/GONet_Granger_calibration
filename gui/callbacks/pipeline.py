@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dash import Input, Output, State, ctx, no_update, ALL
-from ..steps import ORDERED_STEPS, RUNNABLE_STEPS, STEP_BY_ID
+from ..workflow.registry import ORDERED_STEPS, RUNNABLE_STEPS, STEP_BY_ID
 from ..server import app
 from .. import ids
 
@@ -94,12 +94,11 @@ def start_step(request):
 
     spec = STEP_BY_ID[step]
 
-    session = get_session(app)
+    session = get_session()
     if spec.mode == "batch":
 
         out = spec.pipeline_func(
-            session.raw_files,
-            session.output_dir,
+            session.raw_files
         )
 
         session.set(step, out)
@@ -168,7 +167,7 @@ def finalize_step(result, options):
     step_order = ORDERED_STEPS.index(step)
     disable_buttons_list = [i > step_order+1 for i in range(1,len(ORDERED_STEPS))]
 
-    session = get_session(app)
+    session = get_session()
     out = session.get(step)
 
     if isinstance(out, list):

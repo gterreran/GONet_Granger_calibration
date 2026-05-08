@@ -17,7 +17,7 @@ def main():
 
     files = filter_by_ext(args.file_list, [".jpg", ".tiff"])
 
-    launch_extraction_gui(files, outdir=args.outdir, debug=args.debug)
+    launch_extraction_gui(files, output_dir=args.outdir, debug=args.debug)
 
 if __name__ == "__main__":
     main()

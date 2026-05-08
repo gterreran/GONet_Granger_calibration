@@ -1,21 +1,21 @@
 # GONet_Wizard/grid_calibration/gui/layout.py
 
 from dash import html, dcc
-from .server import app
-from .plot_utils import pipeline_plotters
+from typing import Any
 from . import ids
-from .steps import ORDERED_STEPS, StepSpec, STEPS, ENABLE_RULES, CLICKABLE_RULES
-from .data_index import file_list_for_step
+from .workflow.registry import STEPS, ORDERED_STEPS, ENABLE_RULES, CLICKABLE_RULES, VIEWER_FUNCS
+from .workflow.specs import PipelineStepSpec
 from .session import get_session
+from pathlib import Path
 
 # Small helper for a "row": button + dropdown/label
-def control_row(step: StepSpec, button, right, clickable: bool):
+def control_row(step: PipelineStepSpec, button, right, clickable: bool):
     return html.Div(
         [
             html.Div(button, style={"flex": "0 0 auto", "marginRight": "8px"}) if button else None,
             html.Div(right, style={"flex": "1 1 auto"}),
         ],
-        id={"type": "control-row", "step": step.step},
+        id={"type": "control-row", "step": step.key},
         n_clicks=0,
         disable_n_clicks=not clickable,
         style={
@@ -31,9 +31,21 @@ def control_row(step: StepSpec, button, right, clickable: bool):
         className="control-row"
     )
 
+def file_list_for_step(data_files: dict[str, Any], step: str) -> list[Path]:
+    """
+    Return a list of files for a dropdown-based step.
+    """
+    v = data_files.get(step, [])
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return v
+    # label-based steps store a single Path
+    return [v]
+
 def build_layout() -> html.Div:
     
-    session = get_session(app)
+    session = get_session()
 
     first_available_step = "raw-image"
     for step in list(reversed(ORDERED_STEPS)):
@@ -45,28 +57,28 @@ def build_layout() -> html.Div:
 
     data_files = session.products
     for step in STEPS:
-        enabled = ENABLE_RULES[step.step](data_files)
-        clickable = CLICKABLE_RULES[step.step](data_files)
+        enabled = ENABLE_RULES[step.key](data_files)
+        clickable = CLICKABLE_RULES[step.key](data_files)
 
         # button
         button = None
-        if step.step != "raw-image":
+        if step.key != "raw-image":
             button = html.Button(
                 step.button_label,
-                id=ids.step_button_id(step.step),
+                id=ids.step_button_id(step.key),
                 disabled=not enabled,
                 n_clicks=0,
             )
 
         # right-hand widget
         if step.option_kind == "dropdown":
-            paths = file_list_for_step(data_files, step.step)
+            paths = file_list_for_step(data_files, step.key)
             if paths:
                 options = [{"label": p.name, "value": i} for i, p in enumerate(paths)]
             else:
                 options = [{"label": f"No {step.label.lower()} yet", "value": 0}]
             right = dcc.Dropdown(
-                id=ids.step_dropdown_id(step.step),
+                id=ids.step_dropdown_id(step.key),
                 options=options,
                 value=0,
                 disabled=not enabled or not paths,
@@ -74,7 +86,7 @@ def build_layout() -> html.Div:
                 className="dropdown-real",
             )
         else:
-            value = data_files.get(step.step)
+            value = data_files.get(step.key)
             label = value.name if value else f"No {step.label.lower()} yet"
             if value:
                 options = [{"label": value.name, "value": 0}]
@@ -83,7 +95,7 @@ def build_layout() -> html.Div:
                 options = [{"label": f"No {step.label.lower()} yet", "value": 0}]
                 disabled = True
             right = dcc.Dropdown(
-                id=ids.step_dropdown_id(step.step),
+                id=ids.step_dropdown_id(step.key),
                 options=options,
                 value=0,
                 clearable=False,
@@ -137,7 +149,7 @@ def build_layout() -> html.Div:
                                     type="default",
                                     parent_className="plot-loading",
                                     children=html.Div(
-                                        children = pipeline_plotters[first_available_step](0),
+                                        children = VIEWER_FUNCS[first_available_step](0),
                                         id=ids.PLOTTING_AREA,
                                         className="plot-area",
                                     ),
