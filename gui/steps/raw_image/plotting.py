@@ -12,6 +12,7 @@ from dash import dcc, html
 
 from ...plot_utils import _weighted_centroid, _robust_limits, _apply_initial_zoom, plot_layout
 from GONet_Wizard.GONet_utils import GONetFileRaw # type: ignore
+from .keys import STEP_KEY
 
 
 # Server-side cache: filepath -> channel -> float32 2D array
@@ -39,7 +40,7 @@ def _load_raw_channels(file_path: Path) -> Dict[str, np.ndarray]:
 def plot_raw_image(idx: int):
     from ...session import get_session
     session = get_session()
-    data_files = session.get("raw-image")
+    data_files = session.get(STEP_KEY)
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
 

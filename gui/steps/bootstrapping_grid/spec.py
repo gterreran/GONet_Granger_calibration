@@ -1,50 +1,56 @@
+# grid_calibration/gui/steps/bootstrapping_grid/spec.py
 from __future__ import annotations
-from ...workflow.specs import PipelineStepSpec, ProductKind
-from .plotting import plot_bootstrapping_grid, initialize_bootstrapping_grid
+from ...workflow import PipelineStepSpec, ProductKind, ProductIO
+from .keys import STEP_KEY, REQUIRED_ARRAY_KEYS, OPTIONAL_ARRAY_KEYS, DATA_KEY, PARAMS_KEY
+from typing import Any
+from ...workflow.io_helpers import object_array, maybe_item
+from .params import DEFAULT_PARAMETERS
 
-DEFAULT_PARAMETERS = {
-    "grid_step_deg": 2.5,
-    "max_nominal_r_deg": 90.0,
-    "spoke_initial_pull_tol_px": 2.5,
-    "spoke_extrap_tol_px": 3.0,
+def encode_product(
+    **kwargs: Any,
+) -> dict[str, Any]:
+    # Make sure kwargs contains exactly the keys we expect, and no more.
+    if set(kwargs.keys()) != {DATA_KEY, PARAMS_KEY}:
+        raise ValueError(f"Expected kwargs to contain exactly the keys {DATA_KEY} and {PARAMS_KEY}, but got {list(kwargs.keys())}")
+    data = kwargs.get(DATA_KEY)
+    params = kwargs.get(PARAMS_KEY)
+    return {
+        DATA_KEY: object_array(data),
+        PARAMS_KEY: object_array(params),
+    }
 
-    "spoke_spline_smoothing": 2.0,
-    "spoke_sample_count": 1200,
-    "max_growth_steps": 200,
 
-    "inner_cutoff_margin_deg": 2.0,
-    "inner_cutoff_poly_degree": 2,
+def decode_product(loaded: dict[str, Any]) -> dict[str, Any]:
+    return {
+        DATA_KEY: loaded[DATA_KEY].tolist(),
+        PARAMS_KEY: maybe_item(
+            loaded.get(PARAMS_KEY, object_array(DEFAULT_PARAMETERS.copy()))
+        ),
+    }
 
-    "inward_aperture_deg": 20.0,
-    "outward_aperture_deg": 12.0,
-    "outward_perp_tol_px": 2.0,
-    "outward_forward_min_px": 0.5,
+product_io = ProductIO(
+    step_key=STEP_KEY,
+    suffix="_bootstrapped_grid.npz",
+    kind=ProductKind.SINGLETON,
+    required_keys=REQUIRED_ARRAY_KEYS,
+    optional_keys=OPTIONAL_ARRAY_KEYS,
+    allow_pickle=True,
+    encode=encode_product,
+    decode=decode_product,
+)
 
-    "ambiguity_ratio_tol": 1.10,
-    "ambiguity_score_tol": 0.12,
-    "ambiguity_point_sep_px": 3.0,
+def viewer_factory():
+    from .plotting import plot_bootstrapping_grid
+    return plot_bootstrapping_grid
 
-    "circle_outlier_mad_threshold": 5.0,
-    "circle_fourier_harmonics": 3,
-    "circle_only_mad_factor": 5.0,
-
-    #intercative parameters
-    "spoke_final_tol_px": 3.0,
-    "circle_snap_tol_deg": 0.5,
-    "circle_fit_poly_degree": 7,
-    "max_workers": 1,
-
-}
+def initialize_factory():
+    from .plotting import initialize_bootstrapping_grid
+    return initialize_bootstrapping_grid
 
 pipeline_step = PipelineStepSpec.from_dict({
-    "key": "bootstrapping-grid",
+    "key": STEP_KEY,
     "label": "Bootstrapping grids",
     "order": 6,
     "mode": "interactive",
-    "product": {
-        "suffix": "_bootstrapped_grid.npz",
-        "kind": ProductKind.SINGLETON,
-    },
-    "viewer_func": plot_bootstrapping_grid,
-    "initialize_interactive_state": initialize_bootstrapping_grid,
+    "product_kind": product_io.kind,
 })

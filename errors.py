@@ -17,6 +17,11 @@ class ProductLoadError(GridCalibrationError):
     Raised when a pipeline product cannot be loaded or parsed.
     """
 
+class ProductSaveError(GridCalibrationError):
+    """
+    Raised when a pipeline product cannot be saved.
+    """
+
 
 class InvalidCalibrationError(GridCalibrationError):
     """

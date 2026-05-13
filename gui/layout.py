@@ -1,21 +1,20 @@
-# GONet_Wizard/grid_calibration/gui/layout.py
+# grid_calibration/gui/layout.py
 
 from dash import html, dcc
 from typing import Any
 from . import ids
-from .workflow.registry import STEPS, ORDERED_STEPS, ENABLE_RULES, CLICKABLE_RULES, VIEWER_FUNCS
-from .workflow.specs import PipelineStepSpec
+from .workflow.registry import ORDERED_STEPS, ENABLE_RULES, CLICKABLE_RULES, STEP_BY_ID
 from .session import get_session
 from pathlib import Path
 
 # Small helper for a "row": button + dropdown/label
-def control_row(step: PipelineStepSpec, button, right, clickable: bool):
+def control_row(step: str, button, right, clickable: bool):
     return html.Div(
         [
             html.Div(button, style={"flex": "0 0 auto", "marginRight": "8px"}) if button else None,
             html.Div(right, style={"flex": "1 1 auto"}),
         ],
-        id={"type": "control-row", "step": step.key},
+        id={"type": "control-row", "step": step},
         n_clicks=0,
         disable_n_clicks=not clickable,
         style={
@@ -54,31 +53,31 @@ def build_layout() -> html.Div:
             break
 
     rows = []
-
+    
     data_files = session.products
-    for step in STEPS:
-        enabled = ENABLE_RULES[step.key](data_files)
-        clickable = CLICKABLE_RULES[step.key](data_files)
+    for step in ORDERED_STEPS:
+        enabled = ENABLE_RULES[step](data_files)
+        clickable = CLICKABLE_RULES[step](data_files)
 
         # button
         button = None
-        if step.key != "raw-image":
+        if step != "raw-image":
             button = html.Button(
-                step.button_label,
-                id=ids.step_button_id(step.key),
+                STEP_BY_ID[step].button_label,
+                id=ids.step_button_id(step),
                 disabled=not enabled,
                 n_clicks=0,
             )
 
         # right-hand widget
-        if step.option_kind == "dropdown":
-            paths = file_list_for_step(data_files, step.key)
+        if STEP_BY_ID[step].option_kind == "dropdown":
+            paths = file_list_for_step(data_files, step)
             if paths:
                 options = [{"label": p.name, "value": i} for i, p in enumerate(paths)]
             else:
-                options = [{"label": f"No {step.label.lower()} yet", "value": 0}]
+                options = [{"label": f"No {STEP_BY_ID[step].label.lower()} yet", "value": 0}]
             right = dcc.Dropdown(
-                id=ids.step_dropdown_id(step.key),
+                id=ids.step_dropdown_id(step),
                 options=options,
                 value=0,
                 disabled=not enabled or not paths,
@@ -86,16 +85,13 @@ def build_layout() -> html.Div:
                 className="dropdown-real",
             )
         else:
-            value = data_files.get(step.key)
-            label = value.name if value else f"No {step.label.lower()} yet"
+            value = data_files.get(step)
             if value:
                 options = [{"label": value.name, "value": 0}]
-                disabled = False   # data exists
             else:
-                options = [{"label": f"No {step.label.lower()} yet", "value": 0}]
-                disabled = True
+                options = [{"label": f"No {STEP_BY_ID[step].label.lower()} yet", "value": 0}]
             right = dcc.Dropdown(
-                id=ids.step_dropdown_id(step.key),
+                id=ids.step_dropdown_id(step),
                 options=options,
                 value=0,
                 clearable=False,
@@ -149,7 +145,7 @@ def build_layout() -> html.Div:
                                     type="default",
                                     parent_className="plot-loading",
                                     children=html.Div(
-                                        children = VIEWER_FUNCS[first_available_step](0),
+                                        children = STEP_BY_ID[first_available_step].viewer_func(0),
                                         id=ids.PLOTTING_AREA,
                                         className="plot-area",
                                     ),

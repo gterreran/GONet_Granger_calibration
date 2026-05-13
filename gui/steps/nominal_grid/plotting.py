@@ -1,6 +1,7 @@
+# grid_calibration/gui/steps/nominal_grid/plotting.py
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import logging
@@ -9,6 +10,10 @@ from ..unwrapped_grid.plotting import unwrapped_graph
 from dash import dcc, html
 from ... import ids
 from .processing import detect_nominal
+from .spec import product_io as nominal_product_io
+from ..unwrapped_grid.spec import product_io as unwrapped_grid_product_io
+from .params import load_parameters
+from .spec import DATA_KEY, PARAMS_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -74,35 +79,6 @@ RING_COLOR = RGBAColor(255, 179, 71, 0.9)      # amber
 SPOKE_COLOR = RGBAColor(124, 255, 107, 0.9)     # lime
 INTERSECTION_COLOR = RGBAColor(255, 94, 168, 1.0)  # magenta
 COMPONENT_ERROR_COLOR = RGBAColor(255, 0, 0, 0.9)         # red
-
-def _load_unwrapped_grid() -> Optional[Dict[str, np.ndarray]]:
-    from ...session import get_session
-    session = get_session()
-    unwrapped_grid_path = session.get("unwrapped-grid")
-    logger.info(f"Loading unwrapped grid data from {unwrapped_grid_path}...")
-    data = np.load(unwrapped_grid_path, allow_pickle=True)
-    return data
-
-
-def _load_nominal_params() -> Dict[str, np.ndarray]:
-    from ...session import get_session
-    from .spec import DEFAULT_PARAMETERS
-    session = get_session()
-    product = session.get("nominal-grid")
-    default = False
-    if product is None:
-        default = True
-    elif not product.exists():
-        default = True
-    else:
-        data = np.load(product, allow_pickle=True)
-        params = data.get("params", DEFAULT_PARAMETERS).item()
-        if params != DEFAULT_PARAMETERS:
-            logger.info(f"Loaded nominal grid params from {product}: {params}")
-    if default:
-        logger.info(f"Using default parameters for nominal grid search.")
-        params = DEFAULT_PARAMETERS
-    return params
 
 def nominal_groups_styling(fig, selected_point=None):
     mulitple_rings_flag = False
@@ -443,31 +419,22 @@ def overplot_annotated_nominal_groups(
 
     return fig
 
-def plot_nominal_grid(_) -> html.Div:
-    from ...session import get_session
-    session = get_session()
-    product = session.get("nominal-grid")
-    nominal_assignment = np.load(product, allow_pickle=True)["data"]
 
-    data = _load_unwrapped_grid()
+def plot_nominal_grid(_) -> html.Div:
+    nominal_assignment = nominal_product_io.load()[DATA_KEY]
+    data = unwrapped_grid_product_io.load()
 
     fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
-
     fig = overplot_annotated_nominal_groups(fig, nominal_assignment)
 
     nominal_fig, multiple_conflicts_flag = nominal_groups_styling(fig)
     nominal_fig = reset_layout(nominal_fig)
-    nominal_div = make_div_from_fig_dict(nominal_fig)
 
-    return nominal_div
+    return make_div_from_fig_dict(nominal_fig)
+
 
 def fig_nominal_grid(params) -> html.Div:
-    from ...session import get_session
-    session = get_session()
-    unwrapped_file = session.get("unwrapped-grid")
-
-    logger.info(f"Loading unwrapped grid data from {unwrapped_file}...")
-    data = np.load(unwrapped_file, allow_pickle=True)
+    data = unwrapped_grid_product_io.load()
 
     nominal_assignment = detect_nominal(data, params)
 
@@ -475,9 +442,7 @@ def fig_nominal_grid(params) -> html.Div:
     nominal_fig = overplot_annotated_nominal_groups(fig, nominal_assignment)
 
     nominal_fig, multiple_conflicts_flag = nominal_groups_styling(nominal_fig)
-    if multiple_conflicts_flag:
-        logger.warning("Multiple rings/spokes with the same nominal value detected. Highlighting in red.")
-    nominal_fig['layout']["clickmode"] = "event+select"
+    nominal_fig["layout"]["clickmode"] = "event+select"
 
     nominal_div = make_div_from_fig_dict(nominal_fig)
 
@@ -496,7 +461,8 @@ def initialize_nominal_grid() -> html.Div:
     """
     
     logger.info("Initializing nominal grid viewer...")
-    params = _load_nominal_params()
+    
+    params = load_parameters()
 
     nominal_div, nominal_assignment, multiple_conflicts_flag = fig_nominal_grid(params)
 

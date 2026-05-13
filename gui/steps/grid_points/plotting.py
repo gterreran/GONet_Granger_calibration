@@ -1,24 +1,13 @@
-from typing import Dict, Any
+# grid_calibration/gui/steps/grid_points/plotting.py
 import numpy as np
-from ..full_array.plotting import _load_full_array_npz
 from dash import dcc, html
 from ...plot_utils import _weighted_centroid, _robust_limits, _apply_initial_zoom, colorscale, plot_layout
-from ...server import app
 from ... import ids
-from pathlib import Path
 
-# Server-side cache: filepath -> channel -> float32 2D array
-_GRID_CACHE: Dict[str, Dict[str, np.ndarray]] = {}
-
-def _load_grid(grid_npz_path: Path) -> Dict[str, np.ndarray]:
-    key = str(grid_npz_path)
-    if key in _GRID_CACHE:
-        return _GRID_CACHE[key]
-
-    data = np.load(grid_npz_path, allow_pickle=True)
-    out: Dict[str, Any] = {k: data[k] for k in data.files}
-    _GRID_CACHE[key] = out
-    return out
+from ..full_array import product_io as full_array_io
+from ..full_array.keys import IMAGE_KEY
+from .keys import GRID_KEY
+from .spec import product_io as grid_points_io
 
 def plot_grid_array(
     idx: int,
@@ -28,28 +17,18 @@ def plot_grid_array(
     dragmode: str = "pan",
     cut: bool = False,
 ) -> html.Div:
-    from ...session import get_session
-    session = get_session()
-    data_files = session.get("full-array") or []
-    if not data_files:
-        return html.Div("No data files loaded.", style={"color": "crimson"})
+    
+    full_array_paths = full_array_io.get()
+    if not full_array_paths:
+        return html.Div("No full-array files loaded.", style={"color": "crimson"})
 
-    if idx < 0 or idx >= len(data_files):
+    if idx < 0 or idx >= len(full_array_paths):
         return html.Div(f"Index out of range: {idx}", style={"color": "crimson"})
 
-    npz_path = Path(data_files[idx])
+    npz_path = full_array_paths[idx]
+    data = full_array_io.load(npz_path)
 
-    if not npz_path.exists():
-        return html.Div(f"Missing file: {npz_path}", style={"color": "crimson"})
-
-    data = _load_full_array_npz(npz_path)
-
-    if "image" not in data:
-        return html.Div(f"'{npz_path.name}' has no 'image' key.", style={"color": "crimson"})
-
-    img_full = np.asarray(data["image"])
-    if img_full.ndim != 2:
-        return html.Div("Expected 2D full-array image.", style={"color": "crimson"})
+    img_full = np.asarray(data[IMAGE_KEY])
 
     ny_full, nx_full = img_full.shape
 
@@ -95,26 +74,17 @@ def plot_grid_array(
 
     # --- Load grid points layer
     if average:
-        grid_npz_path = session.get("averaged-grid")
+        from ..averaged_grid import product_io as averaged_grid_io
+        grid_data = averaged_grid_io.load()
     else:
-        grid_files = session.get("grid-points") or []
+        grid_files = grid_points_io.get()
         if not grid_files:
             return html.Div("No grid files loaded.", style={"color": "crimson"})
         if idx < 0 or idx >= len(grid_files):
             return html.Div(f"Index out of range: {idx}", style={"color": "crimson"})
-        grid_npz_path = Path(grid_files[idx])
+        grid_data = grid_points_io.load(grid_files[idx])
 
-    if not grid_npz_path.exists():
-        return html.Div(f"Missing file: {grid_npz_path}", style={"color": "crimson"})
-
-    grid_data = _load_grid(grid_npz_path)
-
-    if "grid" not in grid_data:
-        return html.Div(f"'{grid_npz_path.name}' has no 'grid' key.", style={"color": "crimson"})
-
-    grid = grid_data["grid"]
-    if grid.ndim != 2 or grid.shape[1] != 2:
-        return html.Div("Expected 'grid' to be Nx2 array.", style={"color": "crimson"})
+    grid = grid_data[GRID_KEY]
 
     grid_x_full = grid[:, 1]
     grid_y_full = grid[:, 0]

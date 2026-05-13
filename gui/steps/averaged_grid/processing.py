@@ -1,11 +1,18 @@
+# grid_calibration/gui/steps/averaged_grid/processing.py
 from __future__ import annotations
+
 from pathlib import Path
 from typing import List
+
+import logging
 
 import numpy as np
 from scipy.spatial import cKDTree
 
-import logging
+from ..grid_points import product_io as grid_points_io
+from ..grid_points.keys import GRID_KEY
+from .spec import product_io as averaged_grid_io
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,29 +21,28 @@ def average_detected_grids_images(
     image_paths: List[Path],
 ) -> Path:
     """
-    Run average_detected_grids on the list of detection `.npz` files and return the path of
-    the generated averaged grid points `.npz` file.
+    Run average_detected_grids on the grid-point products for each input image.
     """
-    from ...session import get_session
-    session = get_session()
-
-    out_path = session.expected_path("averaged-grid", input_file=image_paths[0])
+    
     detection_paths = [
-        session.expected_path("grid-points", input_file=img)
+        grid_points_io.expected_path(input_file=img)
         for img in image_paths
     ]
-    logger.info(f"[pipeline] Averaging detected grid points -> {out_path}")
+
+    logger.info(f"[pipeline] Averaging detected grid points.")
+
     average_detected_grids(
-        grid_npz_files = detection_paths,
-        outfile = out_path,
-        match_tolerance = 5.0,
-        min_matches = 3,
+        grid_npz_files=detection_paths,
+        match_tolerance=5.0,
+        min_matches=3,
     )
 
+    averaged_grid_io.register()
+    out_path = averaged_grid_io.expected_path(input_file=image_paths[0])
     return out_path
 
 
-def average_detected_grids(grid_npz_files, outfile, match_tolerance=5.0, min_matches=3):
+def average_detected_grids(grid_npz_files, match_tolerance=5.0, min_matches=3):
     """
     Load multiple detection files and keep only grid points that appear
     in at least `min_matches` images, within `match_tolerance` pixels.
@@ -66,7 +72,10 @@ def average_detected_grids(grid_npz_files, outfile, match_tolerance=5.0, min_mat
     n_files = len(grid_npz_files)
     if n_files == 0:
         logging.warning("No grid files provided for averaging.")
-        np.savez_compressed(outfile, grid=np.empty((0, 2)), counts=np.empty((0,), dtype=int))
+        averaged_grid_io.save(
+            grid=np.empty((0, 2)),
+            counts=np.empty((0,), dtype=int),
+        )
         return np.empty((0, 2)), np.empty((0,), dtype=int)
     if min_matches > n_files:
         logging.warning(f"min_matches={min_matches} is greater than number of files={n_files}. Reducing min_matches to {n_files}.")
@@ -78,8 +87,8 @@ def average_detected_grids(grid_npz_files, outfile, match_tolerance=5.0, min_mat
     image_ids = []
 
     for i, fname in enumerate(grid_npz_files):
-        data = np.load(fname, allow_pickle=True)
-        pts = np.asarray(data["grid"])
+        data = grid_points_io.load(fname)
+        pts = np.asarray(data[GRID_KEY])
         all_points.append(pts)
         image_ids.append(np.full(len(pts), i, dtype=np.int16))
 
@@ -87,6 +96,11 @@ def average_detected_grids(grid_npz_files, outfile, match_tolerance=5.0, min_mat
     image_ids = np.concatenate(image_ids)  # shape (N_total,)
 
     if all_points.size == 0:
+        logging.warning("No grid points found in the provided files.")
+        averaged_grid_io.save(
+            grid=np.empty((0, 2)),
+            counts=np.empty((0,), dtype=int),
+        )
         return np.empty((0, 2)), np.empty((0,), dtype=int)
 
     # --- 2) Build a KD-tree for fast neighbor queries
@@ -118,12 +132,19 @@ def average_detected_grids(grid_npz_files, outfile, match_tolerance=5.0, min_mat
             counts.append(n_imgs)
 
     if len(averaged_points) == 0:
+        logging.warning("No clusters met the minimum match requirement.")
+        averaged_grid_io.save(
+            grid=np.empty((0, 2)),
+            counts=np.empty((0,), dtype=int),
+        )
         return np.empty((0, 2)), np.empty((0,), dtype=int)
 
     averaged_points = np.vstack(averaged_points)   # (M, 2)
     counts = np.asarray(counts)
 
-    np.savez_compressed(outfile,
-                        grid=averaged_points, counts=counts)
+    averaged_grid_io.save(
+        grid=averaged_points,
+        counts=counts,
+    )
 
     return averaged_points, counts

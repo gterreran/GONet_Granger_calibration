@@ -1,3 +1,4 @@
+# grid_calibration/__main__.py
 import argparse
 from GONet_Wizard.commands.cli_core import ExpandFilenames, filter_by_ext # type: ignore
 from .gui.app import launch_extraction_gui

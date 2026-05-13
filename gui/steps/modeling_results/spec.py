@@ -1,30 +1,58 @@
+# grid_calibration/gui/steps/modeling_results/spec.py
 from __future__ import annotations
-from ...workflow.specs import PipelineStepSpec, ProductKind
-from .plotting import plot_modeling_results, initialize_modeling_results
+from ...workflow import PipelineStepSpec, ProductKind, ProductIO
+from .keys import STEP_KEY, REQUIRED_ARRAY_KEYS, OPTIONAL_ARRAY_KEYS, DATA_KEY, PARAMS_KEY
+from typing import Any
+from ...workflow.io_helpers import object_array, maybe_item
+from .params import DEFAULT_PARAMETERS
 
-DEFAULT_PARAMETERS = {
-    "regularization": 1e-3, # Ridge penalty applied to harmonic coefficients.
-    "fit-constant-terms": False, # Whether to include n=0 terms in the harmonic correction fields.
-    "max-nfev": 3000, # Maximum number of function evaluations per optimization stage.
-    "outlier-rejection-floor-px": 2.5, # Absolute minimum residual threshold in pixels for outlier rejection.
-    "min-inlier-fraction": 0.90, # Minimum fraction of points that must remain to perform the outlier-refit stage.
 
-    #interactive parameters
-    "radial-degree": 4, # Degree of the symmetric radial polynomial.
-    "harmonic-radial-degree": 3, # Degree of the radius polynomial used in the harmonic correction.
-    "harmonic-order": 4, # Maximum Fourier harmonic order used in the correction fields.
-    "outlier-rejection-sigma": 4.5, # If >0, reject points with residual norm above median + sigma*MAD after the first full fit.
-}
+
+def encode_product(
+    **kwargs: Any,
+) -> dict[str, Any]:
+    # Make sure kwargs contains exactly the keys we expect, and no more.
+    if set(kwargs.keys()) != {DATA_KEY, PARAMS_KEY}:
+        raise ValueError(f"Expected kwargs to contain exactly the keys {DATA_KEY} and {PARAMS_KEY}, but got {list(kwargs.keys())}")
+    data = kwargs.get(DATA_KEY)
+    params = kwargs.get(PARAMS_KEY)
+    return {
+        DATA_KEY: object_array(data),
+        PARAMS_KEY: object_array(params),
+    }
+
+
+def decode_product(loaded: dict[str, Any]) -> dict[str, Any]:
+    return {
+        DATA_KEY: maybe_item(loaded[DATA_KEY]),
+        PARAMS_KEY: maybe_item(
+            loaded.get(PARAMS_KEY, object_array(DEFAULT_PARAMETERS.copy()))
+        ),
+    }
+
+product_io = ProductIO(
+    step_key=STEP_KEY,
+    suffix="_modeling_results.npz",
+    kind=ProductKind.SINGLETON,
+    required_keys=REQUIRED_ARRAY_KEYS,
+    optional_keys=OPTIONAL_ARRAY_KEYS,
+    allow_pickle=True,
+    encode=encode_product,
+    decode=decode_product,
+)
+
+def viewer_factory():
+    from .plotting import plot_modeling_results
+    return plot_modeling_results
+
+def initialize_factory():
+    from .plotting import initialize_modeling_results
+    return initialize_modeling_results
 
 pipeline_step = PipelineStepSpec.from_dict({
-    "key": "modeling-results",
+    "key": STEP_KEY,
     "label": "Modeling",
     "order": 7,
     "mode": "interactive",
-    "product": {
-        "suffix": "_modeling_results.npz",
-        "kind": ProductKind.SINGLETON,
-    },
-    "viewer_func": plot_modeling_results,
-    "initialize_interactive_state": initialize_modeling_results,
+    "product_kind": product_io.kind,
 })

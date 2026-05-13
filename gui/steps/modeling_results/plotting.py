@@ -1,3 +1,4 @@
+# grid_calibration/gui/steps/modeling_results/plotting.py
 from __future__ import annotations
 
 import numpy as np
@@ -6,31 +7,16 @@ import logging
 from ...plot_utils import plot_layout, make_div_from_fig_dict
 from dash import dcc, html
 from ... import ids
-from .processing import GridData, FitResult
-from ...steps.bootstrapping_grid.plotting import plot_bootstrapping_grid
+from ..bootstrapping_grid.plotting import plot_bootstrapping_grid
+from .processing import GridData
+from .spec import product_io as modeling_results_io
+from ..bootstrapping_grid import product_io as bootstrapping_product_io
+from ..bootstrapping_grid.keys import DATA_KEY as BOOTSTRAPPING_DATA_KEY
+from .params import load_parameters
+from .keys import DATA_KEY as MODELING_DATA_KEY
 
 
 logger = logging.getLogger(__name__)
-
-def _load_modeling_params():
-    from .spec import DEFAULT_PARAMETERS
-    from ...session import get_session
-    session = get_session()
-    product = session.get("modeling-results")
-    default = False
-    if product is None:
-        default = True
-    elif not product.exists():
-        default = True
-    else:
-        data = np.load(product, allow_pickle=True)
-        params = data.get("fit_params", DEFAULT_PARAMETERS).item()
-        if params != DEFAULT_PARAMETERS:
-            logger.info(f"Loaded modeling params from {product}: {params}")
-    if default:
-        logger.info(f"Using default parameters for modeling grid search.")
-        params = DEFAULT_PARAMETERS
-    return params
 
 def modeling_fig(data, result):
     fig = {
@@ -47,7 +33,7 @@ def modeling_fig(data, result):
 
     rx = data.x - result.pred_full["x_pred"]
     ry = data.y - result.pred_full["y_pred"]
-    rn = np.hypot(rx, ry)[0]
+    rn = np.hypot(rx, ry)
 
     has_outliers = result.inlier_mask is not None and result.outlier_threshold_px is not None
     if has_outliers:
@@ -160,13 +146,13 @@ def modeling_fig(data, result):
     return fig
 
 def plot_modeling_results(_):
-    from ...session import get_session
-    session = get_session()
-    bootstrapped_nominal_assignment_npz = session.get("bootstrapping-grid")
-    data = GridData.from_npz(bootstrapped_nominal_assignment_npz)
-    model_npz = session.get("modeling-results")
-    result = FitResult.from_npz(model_npz)
-    model_fig = modeling_fig(data, result)
+    fit_result = modeling_results_io.load()[MODELING_DATA_KEY]
+    bootstrapped_nominal_assignment = bootstrapping_product_io.load()[BOOTSTRAPPING_DATA_KEY]
+    data = GridData.from_records(bootstrapped_nominal_assignment)
+
+
+    model_fig = modeling_fig(data, fit_result)
+
 
     model_fig_div = make_div_from_fig_dict(model_fig)
 
@@ -183,7 +169,8 @@ def initialize_modeling_results():
     """
     
     logger.info("Initializing modeling viewer...")
-    params = _load_modeling_params()
+    
+    params = load_parameters()
 
     modeling_div = plot_bootstrapping_grid(None)
     

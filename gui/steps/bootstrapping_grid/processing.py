@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# grid_calibration/gui/steps/bootstrapping_grid/processing.py
 """
 Bootstrap spoke and circle assignments from dense polar-grid detections.
 
@@ -40,7 +41,7 @@ import numpy as np
 import logging
 from scipy.interpolate import splprep, splev
 from scipy.spatial import cKDTree
-from .spec import DEFAULT_PARAMETERS
+from .params import DEFAULT_PARAMETERS
 
 logger = logging.getLogger(__name__)
 from ....errors import DetectionError
@@ -225,11 +226,6 @@ class SpokeBootstrapResult:
 
 def load_center(center_obj: Path) -> np.ndarray:
     return np.array([float(center_obj["x"]), float(center_obj["y"])], dtype=float)
-
-
-def load_image(path: Path) -> np.ndarray:
-    """Load full-array image from ``.npz``."""
-    return np.load(path, allow_pickle=True)["image"]
 
 
 def point_radius_from_center(x: np.ndarray, y: np.ndarray, center_xy: np.ndarray) -> np.ndarray:
@@ -1272,17 +1268,24 @@ def build_output_records(nominal_points: GridData, center_xy: np.ndarray) -> lis
     return data
 
 
-def bootstrapping_from_nominal(nominal_assignment_npz, averaged_grid_npz, center_xy, params) -> None:
+def bootstrapping_from_nominal(
+    nominal_assignment: list[dict],
+    averaged_grid: np.ndarray,
+    center_xy: dict[str, float],
+    params: dict | None = None,
+):
+    
+    params = DEFAULT_PARAMETERS.copy() if params is None else params
+
     max_workers = int(params["max_workers"])
     if max_workers < 1:
         max_workers = max(1, (os.cpu_count() or 2) - 1)
 
-    logger.info("Loading dense grid points...")
-    all_points = DenseGrid.load(np.load(averaged_grid_npz, allow_pickle=True)["grid"])
+
+    all_points = DenseGrid.load(averaged_grid)
     logger.info(f"  loaded {all_points.idx.size} dense points")
 
-    logger.info("Loading nominal points...")
-    nominal_points = GridData.load(np.load(nominal_assignment_npz, allow_pickle=True)["data"])
+    nominal_points = GridData.load(nominal_assignment)
     logger.info(f"  loaded {nominal_points.idx.size} labeled points")
 
     center_xy = load_center(center_xy)

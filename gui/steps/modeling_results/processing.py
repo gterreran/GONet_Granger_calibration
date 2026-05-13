@@ -1,3 +1,4 @@
+# grid_calibration/gui/steps/modeling_results/processing.py
 """
 Fit a distortion model to circular-grid calibration data using radial and
  tangential harmonic corrections.
@@ -105,22 +106,20 @@ class GridData:
     theta_nom_deg: np.ndarray
 
     @classmethod
-    def from_npz(cls, path: Path) -> "GridData":
-        """Load grid data from an ``.npz`` file."""
-        if not path.exists():
-            raise ProductLoadError(f"Input file not found: {path}")
-
-        loaded = np.load(path, allow_pickle=True)
-        if "data" not in loaded:
-            raise ProductLoadError(f"Input file does not contain a 'data' entry: {path}")
-
-        raw = loaded["data"]
+    def from_records(cls, raw: list[dict]) -> "GridData":
+        """
+        Build grid data from nominal-assignment records.
+        """
         if isinstance(raw, np.ndarray):
             raw = raw.tolist()
+
         if isinstance(raw, dict):
             raw = [raw]
+
         if not isinstance(raw, list) or not raw:
-            raise ProductLoadError("The 'data' entry must contain a non-empty list of dictionaries.")
+            raise ProductLoadError(
+                "GridData records must be a non-empty list of dictionaries."
+            )
 
         try:
             idx = np.array([row.get("idx", i) for i, row in enumerate(raw)], dtype=int)
@@ -130,8 +129,10 @@ class GridData:
             theta_meas_deg = np.array([row["theta"] for row in raw], dtype=float)
             r_nom_deg = np.array([row["nominal_r"] for row in raw], dtype=float)
             theta_nom_deg = np.array([row["nominal_theta"] for row in raw], dtype=float)
-        except Exception as exc:  # noqa: BLE001
-            raise ProductLoadError("Could not parse required keys from the 'data' list.") from exc
+        except Exception as exc:
+            raise ProductLoadError(
+                "Could not parse required keys from nominal-assignment records."
+            ) from exc
 
         finite = (
             np.isfinite(x)
@@ -344,39 +345,6 @@ class FitResult:
     n_inliers: int
     n_outliers: int
     summary_full_inliers: FitSummary | None = None
-
-    @classmethod
-    def from_npz(cls, path: Path) -> "FitResult":
-        """Load a fit result from a compressed ``.npz`` file."""
-        if not path.exists():
-            raise ProductLoadError(f"Fit result file not found: {path}")
-
-        loaded = np.load(path, allow_pickle=True)
-
-        x_pred_sym=loaded["x_pred_sym"],
-        y_pred_sym=loaded["y_pred_sym"],
-        x_pred_full=loaded["x_pred_full"],
-        y_pred_full=loaded["y_pred_full"],
-
-        return cls(
-            params_sym=loaded["params_sym"],
-            params_full=loaded["params_full"],
-            summary_sym=None,
-            summary_full=None,
-            pred_sym={
-                "x_pred": x_pred_sym,
-                "y_pred": y_pred_sym,
-            },
-            pred_full={
-                "x_pred": x_pred_full,
-                "y_pred": y_pred_full,
-            },
-            inlier_mask=loaded["inlier_mask"],
-            outlier_threshold_px=float(loaded["outlier_threshold_px"]),
-            n_inliers=None,
-            n_outliers=None,
-            summary_full_inliers=None,
-        )
         
 
 def summarize_fit(data: GridData, pred: dict[str, np.ndarray]) -> tuple[FitSummary, dict[str, np.ndarray]]:
@@ -1028,12 +996,15 @@ def fit_model(
     return result, model
 
 
-def model_nominal_grid(grid_npz, params) -> None:
-    """Run the command line interface."""
-
+def model_nominal_grid(raw_assignment, params):
+    """
+    Fit the distortion model from raw nominal-assignment records.
+    """
     logger.info("Loading data...")
-    data = GridData.from_npz(grid_npz)
-    logger.info(f"Loaded {data.x.size} valid points.")
+
+    data = GridData.from_records(raw_assignment)
+
+    logger.info(f"Loaded {data.x.size} valid points.")  
 
     config = ModelConfig(
         radial_degree=params["radial-degree"],

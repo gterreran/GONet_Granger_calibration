@@ -1,21 +1,48 @@
 # grid_calibration/gui/workflow/registry.py
 
+from __future__ import annotations
+
 import importlib
-import pkgutil
-from .. import steps
-
-STEPS = []
-
-for module_info in pkgutil.iter_modules(steps.__path__):
-    module = importlib.import_module(f"{steps.__name__}.{module_info.name}.spec")
-    if hasattr(module, "pipeline_step"):
-        STEPS.append(module.pipeline_step)
+from ..steps import STEP_MODULES
+from .specs import PipelineStepSpec
+from .product_io import ProductIO
 
 
-STEPS = sorted(STEPS, key=lambda s: s.order)
+STEP_BY_ID: dict[str, PipelineStepSpec] = {}
+PRODUCT_IO_BY_STEP: dict[str, ProductIO] = {}
 
-STEP_BY_ID = {s.key: s for s in STEPS}
-ORDERED_STEPS = [s.key for s in STEPS]
+
+for module in STEP_MODULES:
+    try:
+        step: PipelineStepSpec = getattr(module, "pipeline_step")
+    except AttributeError as exc:
+        raise RuntimeError(
+            f"Step module {module.__name__!r} does not expose pipeline_step."
+        ) from exc
+
+    if step.key in STEP_BY_ID:
+        raise RuntimeError(f"Duplicate pipeline step key: {step.key!r}")
+
+    STEP_BY_ID[step.key] = step
+
+    try:
+        product: ProductIO  = getattr(module, "product_io")
+    except AttributeError as exc:
+        raise RuntimeError(
+            f"Step module {module.__name__!r} does not expose product_io."
+        ) from exc
+    
+    if product is not None and product.step_key != step.key:
+        raise RuntimeError(
+            f"ProductIO key mismatch for step {step.key!r}: "
+            f"got product.step_key={product.step_key!r}"
+        )
+
+    PRODUCT_IO_BY_STEP[step.key] = product
+
+
+ORDERED_STEP_SPECS = sorted(STEP_BY_ID.values(), key=lambda step: step.order)
+ORDERED_STEPS = [step.key for step in ORDERED_STEP_SPECS]
 RUNNABLE_STEPS = ORDERED_STEPS[1:]
 
 
@@ -49,30 +76,21 @@ CLICKABLE_RULES = {
     for step_key in ORDERED_STEPS
 }
 
-VIEWER_FUNCS = {
-    step.key: step.viewer_func
-    for step in STEPS
-    if step.viewer_func is not None
-}
-
-PRODUCT_SPECS = {
-    step.key: step.product
-    for step in STEPS
-    if step.product is not None
-}
 
 def import_step_callback_modules():
     modules = []
 
-    for module_info in pkgutil.iter_modules(steps.__path__):
-        package_name = f"{steps.__name__}.{module_info.name}"
+    for module in STEP_MODULES:
+        callback_module_name = f"{module.__name__}.callbacks"
 
         try:
-            module = importlib.import_module(f"{package_name}.callbacks")
+            callback_module = importlib.import_module(callback_module_name)
+
         except ModuleNotFoundError as exc:
-            if exc.name != f"{package_name}.callbacks":
+            if exc.name != callback_module_name:
                 raise
+
         else:
-            modules.append(module)
+            modules.append(callback_module)
 
     return modules

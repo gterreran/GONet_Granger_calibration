@@ -1,54 +1,36 @@
+# grid_calibration/gui/steps/bootstrapping_grid/plotting.py
 from __future__ import annotations
 
-from typing import Dict
-
-import numpy as np
 import logging
 from ...plot_utils import make_div_from_fig_dict, reset_layout
 from ..unwrapped_grid.plotting import unwrapped_graph
 from dash import dcc, html
 from ... import ids
-from ..nominal_grid.plotting import _load_unwrapped_grid, overplot_annotated_nominal_groups, nominal_groups_styling
+from ..nominal_grid.plotting import overplot_annotated_nominal_groups, nominal_groups_styling
+
+from .spec import product_io as bootstrapping_grid_io
+from ..unwrapped_grid import product_io as unwrapped_grid_io
+from ..unwrapped_grid.keys import THETA_KEY, R_KEY, IDX_KEY
+from ..nominal_grid.keys import DATA_KEY as NOMINAL_DATA_KEY
+from ..nominal_grid.spec import product_io as nominal_grid_io
+
+from ....errors import MissingProductError
+from .params import load_parameters
+from .keys import DATA_KEY
 
 logger = logging.getLogger(__name__)
 
-def _load_bootstrapping_params() -> Dict[str, np.ndarray]:
-    from .spec import DEFAULT_PARAMETERS
-    from ...session import get_session
-    session = get_session()
-    product = session.get("bootstrapping-grid")
-    default = False
-    if product is None:
-        default = True
-    elif not product.exists():
-        default = True
-    else:
-        data = np.load(product, allow_pickle=True)
-        params = data.get("params", DEFAULT_PARAMETERS).item()
-        if params != DEFAULT_PARAMETERS:
-            logger.info(f"Loaded bootstrapping grid params from {product}: {params}")
-    if default:
-        logger.info(f"Using default parameters for bootstrapping grid search.")
-        params = DEFAULT_PARAMETERS
-    return params
-
 def bootstrapping_fig():
-    from ...session import get_session
-    session = get_session()
-    product = session.get("bootstrapping-grid")
-    if product is None:
-        product = session.get("nominal-grid")
-    nominal_assignment = np.load(product, allow_pickle=True)["data"]
+    try:
+        nominal_assignment = bootstrapping_grid_io.load()[DATA_KEY]
+    except MissingProductError:
+        nominal_assignment = nominal_grid_io.load()[NOMINAL_DATA_KEY]
+    data = unwrapped_grid_io.load()
 
-    data = _load_unwrapped_grid()
-
-    fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
-
+    fig = unwrapped_graph(data[THETA_KEY], data[R_KEY], data[IDX_KEY])
     fig = overplot_annotated_nominal_groups(fig, nominal_assignment)
 
-    nominal_fig, multiple_conflicts_flag = nominal_groups_styling(fig)
-
-    return nominal_fig, multiple_conflicts_flag
+    return nominal_groups_styling(fig)
 
 def plot_bootstrapping_grid(_) -> html.Div:
 
@@ -70,12 +52,11 @@ def initialize_bootstrapping_grid():
     """
     
     logger.info("Initializing bootstrapping viewer...")
-    params = _load_bootstrapping_params()
+    
+    params = load_parameters()
 
     nominal_div = plot_bootstrapping_grid(None)
-    from ...session import get_session
-    session = get_session()
-    nominal_assignment = np.load(session.get("nominal-grid"), allow_pickle=True)["data"]
+    nominal_assignment = nominal_grid_io.load()[NOMINAL_DATA_KEY]
 
     n_rings = len(set([a["circle_index"] for a in nominal_assignment]))
     n_spokes = len(set([a["spoke_index"] for a in nominal_assignment]))

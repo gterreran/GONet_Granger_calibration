@@ -1,34 +1,58 @@
+# grid_calibration/gui/steps/nominal_grid/spec.py
+
 from __future__ import annotations
-from ...workflow.specs import PipelineStepSpec, ProductKind
-from .plotting import plot_nominal_grid, initialize_nominal_grid
+from ...workflow import PipelineStepSpec, ProductKind, ProductIO
+from .keys import STEP_KEY, REQUIRED_ARRAY_KEYS, OPTIONAL_ARRAY_KEYS, DATA_KEY, PARAMS_KEY
+from typing import Any
+from ...workflow.io_helpers import object_array, maybe_item
+from .params import DEFAULT_PARAMETERS
 
-DEFAULT_PARAMETERS = {
-    # ring grouping
-    "ring_max_dist": 10.0, # max distance in pixels for chaining ring points
-    "ring_gate_tol_r": 1.5, # gate tolerance in r for chaining ring points
-    "min_ring_group": 150, # minimum points to keep a ring group after chaining
+def encode_product(
+    **kwargs: Any,
+) -> dict[str, Any]:
+    # Make sure kwargs contains exactly the keys we expect, and no more.
+    if set(kwargs.keys()) != {DATA_KEY, PARAMS_KEY}:
+        raise ValueError(f"Expected kwargs to contain exactly the keys {DATA_KEY} and {PARAMS_KEY}, but got {list(kwargs.keys())}")
+    data = kwargs.get(DATA_KEY)
+    params = kwargs.get(PARAMS_KEY)
+    return {
+        DATA_KEY: object_array(data),
+        PARAMS_KEY: object_array(params),
+    }
 
-    # spoke grouping
-    "spoke_max_dist": 35.0, # max distance in pixels for chaining spoke points
-    "spoke_min_dist": 2.0, # minimum increase in r for chaining spoke points
-    "spoke_gate_tol_theta": 0.3, # gate tolerance in theta (degrees) for chaining spoke points
-    "min_spoke_group": 20, # minimum points to keep a spoke group after chaining
 
-    # ring level estimation
-    "bin_width_deg": 30.0, # width of theta bins (degrees) for estimating ring levels and wave
-    "min_pts_per_bin": 10, # minimum points in a theta bin to use it for ring level estimation
-    "n_wave_iter": 3, # number of iterations to perform for wave correction in ring level estimation
-}
+def decode_product(loaded: dict[str, Any]) -> dict[str, Any]:
+    return {
+        DATA_KEY: loaded[DATA_KEY].tolist(),
+        PARAMS_KEY: maybe_item(
+            loaded.get(PARAMS_KEY, object_array(DEFAULT_PARAMETERS.copy()))
+        ),
+    }
+
+
+product_io = ProductIO(
+    step_key=STEP_KEY,
+    suffix="_nominal_grid.npz",
+    kind=ProductKind.SINGLETON,
+    required_keys=REQUIRED_ARRAY_KEYS,
+    optional_keys=OPTIONAL_ARRAY_KEYS,
+    allow_pickle=True,
+    encode=encode_product,
+    decode=decode_product,
+)
+
+def viewer_factory():
+    from .plotting import plot_nominal_grid
+    return plot_nominal_grid
+
+def initialize_factory():
+    from .plotting import initialize_nominal_grid
+    return initialize_nominal_grid
 
 pipeline_step = PipelineStepSpec.from_dict({
-    "key": "nominal-grid",
+    "key": STEP_KEY,
     "label": "Build nominal grids",
     "order": 5,
     "mode": "interactive",
-    "product": {
-        "suffix": "_nominal_grid.npz",
-        "kind": ProductKind.SINGLETON,
-    },
-    "viewer_func": plot_nominal_grid,
-    "initialize_interactive_state": initialize_nominal_grid,
+    "product_kind": product_io.kind,
 })

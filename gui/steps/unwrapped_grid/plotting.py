@@ -1,12 +1,14 @@
+# grid_calibration/gui/steps/unwrapped_grid/plotting.py
 from __future__ import annotations
 
 from dash import dcc, html
 import logging
 from ..grid_points.plotting import plot_grid_array
 from ... import ids
-import numpy as np
+from .spec import product_io as unwrapped_product_io
 
 from ...plot_utils import make_div_from_fig_dict, plot_layout, reset_layout
+from .keys import IDX_KEY, THETA_KEY, R_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -53,17 +55,13 @@ def unwrapped_graph(theta, r, idx, alpha=1.0) -> dict:
 
 
 def plot_unwrapped_grid(_) -> html.Div:
-    from ...session import get_session
-    session = get_session()
-    product = session.get("unwrapped-grid")
-    
-    logger.info(f"Loading unwrapped grid data from '{product}'...")
-    data = np.load(product, allow_pickle=True)
-    fig = unwrapped_graph(data["theta"], data["r"], data["idx"])
-    fig = reset_layout(fig)
-    unwrapped_div = make_div_from_fig_dict(fig)
+    data = unwrapped_product_io.load()
 
-    return unwrapped_div
+    logger.info("Loading unwrapped grid data...")
+    fig = unwrapped_graph(data[THETA_KEY], data[R_KEY], data[IDX_KEY])
+    fig = reset_layout(fig)
+
+    return make_div_from_fig_dict(fig)
     
 
         
@@ -92,25 +90,34 @@ def initialize_unwrapped_grid() -> html.Div:
     img_fig = plot_grid_array(0, zoom_half_size=100, average=True, dragmode=False, cut=True)
 
     controls = html.Div(
-        id =ids.UNWRAPPING_INTERACTIVE_CONTROLS_ID,
+        id=ids.UNWRAPPING_INTERACTIVE_CONTROLS_ID,
         children=[
-            html.H4("Grid: center selection", style={"marginTop": "0.25rem"}),
+            html.H4("Grid: center selection", className="section-title"),
 
             html.Div(
                 [
-                    html.Label("Click mode", style={"fontWeight": "600"}),
+                    html.Label("Click mode", className="control-label"),
                     dcc.RadioItems(
                         id=ids.MODE_RADIO_ID,
                         options=[
-                            {"label": "Snap to nearest detected grid point", "value": "snap"},
-                            {"label": "Free click (use raw pixel coords)", "value": "free"},
+                            {
+                                "label": "Snap to nearest detected grid point",
+                                "value": "snap",
+                            },
+                            {
+                                "label": "Free click (use raw pixel coords)",
+                                "value": "free",
+                            },
                         ],
                         value="snap",
                         inputStyle={"marginRight": "0.4rem"},
-                        labelStyle={"display": "block", "marginBottom": "0.25rem"},
+                        labelStyle={
+                            "display": "block",
+                            "marginBottom": "0.25rem",
+                        },
                     ),
                 ],
-                style={"marginBottom": "0.75rem"},
+                className="control-group",
             ),
 
             html.Div(
@@ -119,15 +126,16 @@ def initialize_unwrapped_grid() -> html.Div:
                         "Confirm center",
                         id=ids.CONFIRM_BTN_ID,
                         n_clicks=0,
-                        style={"marginRight": "0.5rem"},
+                        className="action-button action-button-primary",
                     ),
                     html.Button(
                         "Reset",
                         id=ids.RESET_BTN_ID,
                         n_clicks=0,
+                        className="action-button",
                     ),
                 ],
-                style={"marginBottom": "0.75rem"},
+                className="button-row",
             ),
 
             html.Div(
@@ -136,35 +144,16 @@ def initialize_unwrapped_grid() -> html.Div:
                     html.Div("Pending: (—, —)"),
                     html.Div("Confirmed: (—, —)"),
                 ],
-                style={
-                    "fontFamily": "monospace",
-                    "fontSize": "0.95rem",
-                    "whiteSpace": "pre-wrap",
-                    "border": "1px solid #ddd",
-                    "borderRadius": "6px",
-                    "padding": "0.5rem",
-                    "background": "#fafafa",
-                },
+                className="status-box",
             ),
 
-            # Stores: these make the step self-contained.
             dcc.Store(id=ids.PENDING_STORE_ID, data=None),
             dcc.Store(id=ids.CENTER_STORE_ID, data=None),
         ],
-        style={
-            "width": "320px",
-            "minWidth": "280px",
-            "padding": "0.75rem",
-            "borderLeft": "1px solid #e6e6e6",
-        },
+        className="side-controls-panel",
     )
 
     return html.Div(
-        children = [img_fig, controls],
-        style={
-            "display": "flex",
-            "flexDirection": "row",
-            "gap": "0.0rem",
-            "width": "100%",
-        },
+        [img_fig, controls],
+        className="two-panel-row",
     )

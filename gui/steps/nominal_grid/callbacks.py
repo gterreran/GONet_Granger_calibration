@@ -1,8 +1,8 @@
+# grid_calibration/gui/steps/nominal_grid/callbacks.py
 from __future__ import annotations
 
 from typing import Optional
 
-import numpy as np
 from dash import Input, Output, State, ctx, no_update, html
 from dash.exceptions import PreventUpdate
 import logging
@@ -10,8 +10,11 @@ import logging
 from ... import ids
 from ...server import app
 from .plotting import nominal_groups_styling, fig_nominal_grid
-from .spec import DEFAULT_PARAMETERS
+from .params import DEFAULT_PARAMETERS
 from ....errors import InvalidCalibrationError
+from .spec import product_io as nominal_product_io
+from .spec import DATA_KEY, PARAMS_KEY
+from .keys import STEP_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -359,16 +362,19 @@ def save_current_nominal_grid(
         "min_spoke_group": min_spoke_group,
     })
 
-    from ...session import get_session
-    session = get_session()
-    out_npz = session.expected_path("nominal-grid")
-    logger.info(f"Saved nominal grid data to: {out_npz}")
-    np.savez_compressed(out_npz, data=nominal_assignment, params=params)
+    output_packet = {
+        DATA_KEY: nominal_assignment,
+        PARAMS_KEY: params,
+    }
 
-    session.set("nominal-grid", out_npz)
+    nominal_product_io.save(
+        **output_packet,
+    )
+
+    nominal_product_io.register()
 
     result = {
-        "step": "nominal-grid",
+        "step": STEP_KEY,
         "status": "completed",
         "request_token": ctx.triggered[0]["prop_id"],
     }

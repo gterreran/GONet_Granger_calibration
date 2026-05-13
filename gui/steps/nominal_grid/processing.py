@@ -1,3 +1,4 @@
+# grid_calibration/gui/steps/nominal_grid/processing.py
 
 from __future__ import annotations
 
@@ -6,6 +7,8 @@ import logging
 import numpy as np
 from scipy.spatial import cKDTree
 from ....errors import DetectionError
+from .params import DEFAULT_PARAMETERS
+from ..unwrapped_grid.keys import IDX_KEY, THETA_KEY, R_KEY, POINTS_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -445,11 +448,10 @@ def detect_nominal(data, params: dict):
 
     logger.info("Detecting nominal grid assignment...")
 
-    base_idx = data["idx"]
-    pixels = data["pts"]
-    theta = data["theta"]
-    r = data["r"]
-    center = data["center"].item()
+    base_idx = data[IDX_KEY]
+    pixels = data[POINTS_KEY]
+    theta = data[THETA_KEY]
+    r = data[R_KEY]
 
     pts = np.column_stack([theta, r]).astype(float, copy=False)
 
@@ -496,7 +498,6 @@ def detect_nominal(data, params: dict):
     # -----------------------------------------------------------------
     logger.info("Estimating nominal circle levels with wave correction...")
 
-    from .spec import DEFAULT_PARAMETERS
     ring_levels_px, wave, grp_bins = estimate_ring_levels_with_wave_correction(
         pts,
         groups_theta,

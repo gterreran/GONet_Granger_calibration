@@ -1,3 +1,4 @@
+# grid_calibration/gui/steps/unwrapped_grid/callbacks.py
 from __future__ import annotations
 
 from typing import Any, Optional, Tuple
@@ -7,7 +8,10 @@ from dash import Input, Output, State, ctx, no_update, html
 
 from ... import ids
 from ...server import app
-from ..grid_points.plotting import _load_grid
+from .spec import product_io as unwrapped_product_io
+from ..averaged_grid import product_io as averaged_grid_product_io
+from ..averaged_grid.keys import GRID_KEY
+from .keys import STEP_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -199,15 +203,12 @@ def update_calibration_figure(pending, confirmed, fig):
     - If no confirmed center: show image + grid + pending/confirmed markers
     - If confirmed center: replace figure with unwrapped grid (θ vs r)
     """
-    from ...session import get_session
-    session = get_session()
     # ----------------------------
     # Case 1: confirmed center → UNWRAPPED VIEW
     # ----------------------------
     if confirmed and confirmed.get("x") is not None and confirmed.get("y") is not None:
-        averaged_grid_path = session.get("averaged-grid")
-        logger.info(f"Loading averaged grid from {averaged_grid_path}")
-        pts = _load_grid(averaged_grid_path)["grid"]
+        averaged_grid = averaged_grid_product_io.load()
+        pts = averaged_grid[GRID_KEY]
 
         # create and index array
         idx = np.arange(pts.shape[0])
@@ -227,14 +228,20 @@ def update_calibration_figure(pending, confirmed, fig):
         r = r[order]
         pts = pts[order]
 
-        out_npz = session.expected_path("unwrapped-grid")
-        np.savez_compressed(out_npz, idx=idx, theta=theta, r=r, pts=pts, center={"x": cx, "y": cy})
-        logger.info(f"Saved unwrapped grid to {out_npz}")
+        unwrapped_product_io.save(
+            idx=idx,
+            theta=theta,
+            r=r,
+            pts=pts,
+            center={"x": cx, "y": cy},
+        )
 
-        session.set("unwrapped-grid", out_npz)
+        logger.info("Saved unwrapped grid")
+
+        unwrapped_product_io.register()
 
         result = {
-            "step": "unwrapped-grid",
+            "step": STEP_KEY,
             "status": "completed",
             "request_token": ctx.triggered[0]["prop_id"],
         }

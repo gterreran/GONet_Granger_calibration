@@ -1,3 +1,4 @@
+# grid_calibration/gui/steps/bootstrapping_grid/callbacks.py
 from __future__ import annotations
 
 from typing import Optional
@@ -5,12 +6,20 @@ from typing import Optional
 from dash import Input, Output, State, ctx, no_update, html
 import logging
 
-import numpy as np
+from .spec import product_io as bootstrapping_grid_io
+from ..averaged_grid.spec import product_io as averaged_grid_io
+from ..averaged_grid.keys import GRID_KEY
+from ..nominal_grid.spec import product_io as nominal_grid_io
+from ..nominal_grid.spec import DATA_KEY as NOMINAL_DATA_KEY
+from ..unwrapped_grid import product_io as unwrapped_grid_io
+from ..unwrapped_grid.keys import CENTER_KEY
+from .keys import STEP_KEY
 from ... import ids
 from ...server import app
 from .plotting import bootstrapping_fig
 from .processing import bootstrapping_from_nominal
-from .spec import DEFAULT_PARAMETERS
+from .params import DEFAULT_PARAMETERS
+from .spec import DATA_KEY, PARAMS_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -72,12 +81,16 @@ def bootstrap_grid(
         "circle_fit_poly_degree": circle_fit_poly_degree,
         "max_workers": max_workers,
     })
-    from ...session import get_session
-    session = get_session()
-    nominal_assignment_npz = session.get("nominal-grid")
-    averaged_grid_npz = session.get("averaged-grid")
-    center_xy = np.load(session.get("unwrapped-grid"), allow_pickle=True)["center"].item()
-    bootstrapped_nominal_assignment = bootstrapping_from_nominal(nominal_assignment_npz, averaged_grid_npz, center_xy, params)
+    nominal_assignment = nominal_grid_io.load()[NOMINAL_DATA_KEY]
+    averaged_grid = averaged_grid_io.load()[GRID_KEY]
+    center_xy = unwrapped_grid_io.load()[CENTER_KEY]
+
+    bootstrapped_nominal_assignment = bootstrapping_from_nominal(
+        nominal_assignment,
+        averaged_grid,
+        center_xy,
+        params,
+    )
 
     nominal_fig, multiple_conflicts_flag = bootstrapping_fig()
 
@@ -86,15 +99,19 @@ def bootstrap_grid(
         html.Div(f"Spokes found: {len(set([a['spoke_index'] for a in bootstrapped_nominal_assignment]))}"),
     ]
 
-    out_npz = session.expected_path("bootstrapping-grid")
+    output_packet = {
+        DATA_KEY: bootstrapped_nominal_assignment,
+        PARAMS_KEY: params,
+    }
 
-    logger.info(f"Saved nominal grid data to: {out_npz}")
-    np.savez_compressed(out_npz, data=bootstrapped_nominal_assignment, params=params)
+    bootstrapping_grid_io.save(
+        **output_packet,
+    )
 
-    session.set("bootstrapping-grid", out_npz)
+    bootstrapping_grid_io.register()
 
     result = {
-        "step": "bootstrapping-grid",
+        "step": STEP_KEY,
         "status": "completed",
         "request_token": ctx.triggered[0]["prop_id"],
     }

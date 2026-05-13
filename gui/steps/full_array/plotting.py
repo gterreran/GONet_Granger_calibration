@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, Any
+from typing import Dict
 
 import numpy as np
 import plotly.graph_objects as go
 from dash import dcc, html
+from .keys import IMAGE_KEY
 
 from ...plot_utils import _weighted_centroid, _robust_limits, _apply_initial_zoom, plot_layout
+
+from .spec import product_io as full_array_product_io
 
 CHANNEL_COLORS = {
     "red": "red",
@@ -17,25 +19,6 @@ CHANNEL_COLORS = {
     "green2": "limegreen",
     "blue": "blue",
 }
-
-# Server-side cache: npz_path -> loaded dict (arrays)
-_FULL_ARRAY_NPZ_CACHE: Dict[str, Dict[str, Any]] = {}
-
-
-def _load_full_array_npz(npz_path: Path) -> Dict[str, Any]:
-    """
-    Load a full-array .npz product and cache it server-side.
-    """
-    key = str(npz_path)
-    if key in _FULL_ARRAY_NPZ_CACHE:
-        return _FULL_ARRAY_NPZ_CACHE[key]
-
-    data = np.load(npz_path, allow_pickle=True)
-    out: Dict[str, Any] = {k: data[k] for k in data.files}
-    _FULL_ARRAY_NPZ_CACHE[key] = out
-    return out
-
-
 
 def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str) -> go.Figure:
     """
@@ -108,26 +91,20 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
         html.Div containing the interactive plots.
     """
 
-    from ...session import get_session
-    session = get_session()
-    data_files = session.get("full-array") or []
+    data_files = full_array_product_io.get()
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
 
     if idx < 0 or idx >= len(data_files):
         return html.Div(f"Index out of range: {idx}", style={"color": "crimson"})
 
-    npz_path = Path(data_files[idx])
+    npz_path = data_files[idx]
+    data = full_array_product_io.load(npz_path)
 
-    if not npz_path.exists():
-        return html.Div(f"Missing file: {npz_path}", style={"color": "crimson"})
+    if IMAGE_KEY not in data:
+        return html.Div(f"'{npz_path.name}' has no '{IMAGE_KEY}' key.", style={"color": "crimson"})
 
-    data = _load_full_array_npz(npz_path)
-
-    if "image" not in data:
-        return html.Div(f"'{npz_path.name}' has no 'image' key.", style={"color": "crimson"})
-
-    img = np.asarray(data["image"])
+    img = np.asarray(data[IMAGE_KEY])
     if img.ndim != 2:
         return html.Div("Expected 2D full-array image.", style={"color": "crimson"})
 
