@@ -106,21 +106,16 @@ def exit_app(_):
 
 clientside_callback(
     """
-    function(rowClicks, disabledList, steps, currentActive) {
+    function(rowClicks, disabledList, steps) {
         const trig = dash_clientside.callback_context.triggered_id;
         if (!trig) return window.dash_clientside.no_update;
 
-        // trig is like {type:"control-row", step:"full-array"}
         if (typeof trig === "object" && trig.type === "control-row") {
             const step = trig.step;
             const i = steps.indexOf(step);
             if (i === -1) return window.dash_clientside.no_update;
 
-            // If this row is not clickable, ignore the click
             if (disabledList[i]) return window.dash_clientside.no_update;
-
-            // If it's already active, don't update the store
-            if (step === currentActive) return window.dash_clientside.no_update;
 
             return step;
         }
@@ -132,12 +127,12 @@ clientside_callback(
     Input({"type": "control-row", "step": ALL}, "n_clicks"),
     State({"type": "control-row", "step": ALL}, "disable_n_clicks"),
     State(ids.STORE_CONTROL_STEPS, "data"),
-    State(ids.STORE_ACTIVE_STEP, "data"),
     prevent_initial_call=True,
 )
+
 clientside_callback(
     """
-    function(activeStep, disabledList, steps) {
+    function(selectedStep, activeStep, disabledList, steps) {
         const base = {
             display: "flex",
             alignItems: "center",
@@ -154,13 +149,14 @@ clientside_callback(
             background: "rgba(77, 163, 255, 0.08)"
         });
 
+        const highlightedStep = selectedStep || activeStep;
+
         return steps.map((step, i) => {
             const isDisabled = disabledList[i];
-            const isActive = (step === activeStep);
+            const isActive = (step === highlightedStep);
 
             let s = isActive ? Object.assign({}, active) : Object.assign({}, base);
 
-            // cursor + dimming when not clickable
             if (isDisabled) {
                 s.cursor = "default";
             } else {
@@ -173,6 +169,7 @@ clientside_callback(
     }
     """,
     Output({"type": "control-row", "step": ALL}, "style"),
+    Input(ids.STORE_SELECTED_STEP, "data"),
     Input(ids.STORE_ACTIVE_STEP, "data"),
     Input({"type": "control-row", "step": ALL}, "disable_n_clicks"),
     Input(ids.STORE_CONTROL_STEPS, "data"),

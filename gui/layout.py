@@ -112,7 +112,7 @@ def build_layout() -> html.Div:
             dcc.Store(id=ids.STORE_RUN_STEP, data=None),
             dcc.Store(id=ids.STORE_STEP_REQUEST, data=None),
             dcc.Store(id=ids.STORE_STEP_RESULT, data=None),
-            dcc.Store(id=ids.STORE_SELECTED_STEP, data=None),
+            dcc.Store(id=ids.STORE_SELECTED_STEP, data=first_available_step),
 
             dcc.Interval(id=ids.LOG_POLL_INTERVAL, interval=800, n_intervals=0),
 
