@@ -30,8 +30,9 @@ def detect_grid_points_for_images(
         out_path = grid_points_io.expected_path(img)
 
         logger.info(
-            f"[pipeline] Detecting grid points for "
-            f"{full_array_path.name} -> {out_path}"
+            "Detecting grid points for %s -> %s",
+            full_array_path.name,
+            out_path,
         )
 
         detect_grid_points(
@@ -51,7 +52,7 @@ def detect_grid_points(
     outfile: Path,
     threshold_rel: float = 0.1,
 ) -> None:
-    logger.info(f"Loading {full_gonet_array_file_path}...")
+    logger.info("Loading %s...", full_gonet_array_file_path)
 
     data = full_array_io.load(full_gonet_array_file_path)
     image = data[IMAGE_KEY]
@@ -64,6 +65,6 @@ def detect_grid_points(
     smoothed_peaks = gaussian(dog, sigma=1.0, preserve_range=True)
     peaks = peak_local_max(smoothed_peaks**2, threshold_rel=threshold_rel)
 
-    logger.info(f"Detected {len(peaks)} grid points.")
+    logger.info("Detected %d grid points.", len(peaks))
 
     grid_points_io.save(path=outfile, grid=peaks)

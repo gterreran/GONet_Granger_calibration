@@ -18,13 +18,14 @@ def update_plotting_area(selected_step, idx_values):
     if not selected_step:
         return no_update
 
-    plotting_function = STEP_BY_ID[selected_step].viewer_func
-    if plotting_function is None:
+    try:
+        step_spec = STEP_BY_ID[selected_step]
+        step_index = ORDERED_STEPS.index(selected_step)
+    except (KeyError, ValueError):
         return no_update
 
-    try:
-        step_index = ORDERED_STEPS.index(selected_step)
-    except ValueError:
+    plotting_function = step_spec.viewer_func
+    if plotting_function is None:
         return no_update
 
     if not idx_values or step_index >= len(idx_values):

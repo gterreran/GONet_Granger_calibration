@@ -29,7 +29,7 @@ def average_detected_grids_images(
         for img in image_paths
     ]
 
-    logger.info(f"[pipeline] Averaging detected grid points.")
+    logger.info("Averaging detected grid points.")
 
     average_detected_grids(
         grid_npz_files=detection_paths,
@@ -71,14 +71,14 @@ def average_detected_grids(grid_npz_files, match_tolerance=5.0, min_matches=3):
     # override min_matches to be at most the number of input files
     n_files = len(grid_npz_files)
     if n_files == 0:
-        logging.warning("No grid files provided for averaging.")
+        logger.warning("No grid files provided for averaging.")
         averaged_grid_io.save(
             grid=np.empty((0, 2)),
             counts=np.empty((0,), dtype=int),
         )
         return np.empty((0, 2)), np.empty((0,), dtype=int)
     if min_matches > n_files:
-        logging.warning(f"min_matches={min_matches} is greater than number of files={n_files}. Reducing min_matches to {n_files}.")
+        logger.warning(f"min_matches={min_matches} is greater than number of files={n_files}. Reducing min_matches to {n_files}.")
     min_matches = min(min_matches, n_files)
 
 
@@ -96,7 +96,7 @@ def average_detected_grids(grid_npz_files, match_tolerance=5.0, min_matches=3):
     image_ids = np.concatenate(image_ids)  # shape (N_total,)
 
     if all_points.size == 0:
-        logging.warning("No grid points found in the provided files.")
+        logger.warning("No grid points found in the provided files.")
         averaged_grid_io.save(
             grid=np.empty((0, 2)),
             counts=np.empty((0,), dtype=int),
@@ -132,7 +132,7 @@ def average_detected_grids(grid_npz_files, match_tolerance=5.0, min_matches=3):
             counts.append(n_imgs)
 
     if len(averaged_points) == 0:
-        logging.warning("No clusters met the minimum match requirement.")
+        logger.warning("No clusters met the minimum match requirement.")
         averaged_grid_io.save(
             grid=np.empty((0, 2)),
             counts=np.empty((0,), dtype=int),

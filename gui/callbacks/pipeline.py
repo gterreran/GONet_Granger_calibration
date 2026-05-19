@@ -8,6 +8,7 @@ from ..server import app
 from .. import ids
 
 from ..session import get_session
+from ..logging_utils import log_step
 
 
 def _empty_outputs():
@@ -97,9 +98,10 @@ def start_step(request):
     session = get_session()
     if spec.mode == "batch":
 
-        out = spec.pipeline_func(
-            session.raw_files
-        )
+        with log_step(step):
+            out = spec.pipeline_func(
+                session.raw_files
+            )
 
         session.set(step, out)
 
@@ -112,7 +114,8 @@ def start_step(request):
 
     if spec.mode == "interactive":
 
-        interactive_div = spec.initialize_interactive_state()
+        with log_step(step):
+            interactive_div = spec.initialize_interactive_state()
 
         status = f"Step {step} started. Waiting for user input."
         return status, step, no_update, interactive_div
@@ -169,6 +172,9 @@ def finalize_step(result, options):
 
     session = get_session()
     out = session.get(step)
+
+    if out is None:
+        return _empty_outputs()
 
     if isinstance(out, list):
         new_options = [{"label": p.name, "value": i} for i, p in enumerate(out)]

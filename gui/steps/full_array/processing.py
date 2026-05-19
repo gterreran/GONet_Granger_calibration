@@ -25,13 +25,13 @@ def build_full_arrays_for_images(
     for img in image_paths:
         out_path = full_array_product_io.expected_path(img)
 
-        logger.info(f"[pipeline] Building full array for {img.name} -> {out_path}")
+        logger.info("Building full array for %s -> %s", img.name, out_path)
 
         build_full_array(
             gonet_file=img,
             show=False,
             outfile=out_path,
-            verbose=True,
+            verbose=logger.isEnabledFor(logging.DEBUG),
             save_diagnostics=True,
         )
 

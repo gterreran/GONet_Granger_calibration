@@ -1,6 +1,9 @@
 # grid_calibration/gui/steps/full_array/key.py
 
-from GONet_Wizard.GONet_utils.src.gonet.config import CHANNEL_NAMES_RAW # type: ignore
+try:
+    from GONet_Wizard.GONet_utils.src.gonet.config import CHANNEL_NAMES_RAW  # type: ignore
+except ModuleNotFoundError:
+    CHANNEL_NAMES_RAW = ("blue", "green", "red")
 
 STEP_KEY = "full-array"
 

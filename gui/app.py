@@ -4,18 +4,17 @@
 from .server import app
 import threading, webview, logging
 from GONet_Wizard.ui.api import WebviewAPI # type: ignore
-from .logging_utils import configure_gui_logging 
+from .logging_utils import configure_gui_logging, silence_server_loggers 
 from .session import CalibrationSession
 from pathlib import Path
 
 def run_app(debug=False):
-    # Configure logging interception BEFORE importing code that logs
-    configure_gui_logging()
+    # Configure logging interception BEFORE importing code that logs.
+    level = logging.DEBUG if debug else logging.INFO
+    configure_gui_logging(level=level, clear_existing=True)
 
     if not debug:
-        # Suppress Flask/Werkzeug/Dash startup logging
-        logging.getLogger("werkzeug").setLevel(logging.ERROR)
-        logging.getLogger("dash.dash").setLevel(logging.ERROR)
+        silence_server_loggers()
         import flask.cli
         flask.cli.show_server_banner = lambda *args, **kwargs: None
 

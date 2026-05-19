@@ -62,8 +62,13 @@ class ProductIO:
         from ..session import get_session
 
         session = get_session()
-        input_file = input_file or session.first_raw_file
 
+        if self.is_per_input and input_file is None:
+            raise MissingProductError(
+                f"Product {self.step_key!r} is per-input; provide input_file."
+            )
+
+        input_file = input_file or session.first_raw_file
         return session.output_dir / self.relative_path(input_file)
 
     def get(self) -> Path | list[Path] | None:

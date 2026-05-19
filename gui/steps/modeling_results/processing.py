@@ -910,7 +910,7 @@ def fit_model(
         loss="soft_l1",
         f_scale=2.0,
         max_nfev=max_nfev,
-        verbose=2,
+        verbose=2 if logger.isEnabledFor(logging.DEBUG) else 0,
     )
     p_sym = np.array(res_sym.x, copy=True)
     p_sym[model.n_sym :] = 0.0
@@ -925,7 +925,7 @@ def fit_model(
         loss="soft_l1",
         f_scale=2.0,
         max_nfev=max_nfev,
-        verbose=2,
+        verbose=2 if logger.isEnabledFor(logging.DEBUG) else 0,
     )
     p_full = np.array(res_full.x, copy=True)
     pred_full = add_center_to_prediction(model.predict(p_full, data), p_full)
@@ -959,7 +959,7 @@ def fit_model(
                 loss="soft_l1",
                 f_scale=2.0,
                 max_nfev=max_nfev,
-                verbose=2,
+                verbose=2 if logger.isEnabledFor(logging.DEBUG) else 0,
             )
             p_full = np.array(res_refit.x, copy=True)
             pred_full = add_center_to_prediction(model.predict(p_full, data), p_full)
