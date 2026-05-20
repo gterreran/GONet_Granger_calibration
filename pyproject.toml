@@ -46,7 +46,7 @@ dependencies = [
 dev = [
     "pytest",
     "sphinx",
-    "furo",
+    "sphinx-rtd-theme",
 ]
 
 
