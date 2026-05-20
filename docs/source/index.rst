@@ -5,6 +5,6 @@ GONet Calibration Documentation
    :maxdepth: 2
    :caption: Contents:
 
-   calibration/distortion_model
+   walkthrough/index
    architecture/index
    api/index
