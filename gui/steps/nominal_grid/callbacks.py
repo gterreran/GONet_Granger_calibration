@@ -240,7 +240,12 @@ def edit_selected_point(nominal_ring_value, nominal_spoke_value, selected_point,
             point["nominal_r"] = nominal_ring_value
         if point["spoke_index"] == selected_point["spoke_index"]:
             point["nominal_theta"] = nominal_spoke_value
-    
+
+    try:
+        fig["data"][-1]["customdata"] = nominal_assignment
+    except Exception:
+        logger.debug("Could not update intersection trace customdata; skipping.")
+
     return selected_point, fig, nominal_assignment
 
 
