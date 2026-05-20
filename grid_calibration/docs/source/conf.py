@@ -7,8 +7,8 @@ sys.path.insert(0, str(PACKAGE_PARENT))
 
 project = "GONet Calibration"
 author = "Giacomo Terreran"
-release = "0.9"
-
+release = "1.0"
+    
 master_doc = 'index'
 
 extensions = [
