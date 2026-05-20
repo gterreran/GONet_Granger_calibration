@@ -12,7 +12,7 @@ Package Entry Points
 Command-Line Entry Point
 ------------------------
 
-.. automodule:: grid_calibration.__main__
+.. automodule:: grid_calibration.cli
    :members:
    :undoc-members:
    :show-inheritance:
