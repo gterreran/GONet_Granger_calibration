@@ -45,7 +45,7 @@ def test_synthetic_products_are_discovered_from_output_directory(tmp_path: Path)
             assert discovered[step_key].exists()
 
 
-def test_discovery_represents_missing_products_without_crashing(tmp_path: Path) -> None:
+def test_discovery_represents_incomplete_per_input_products_without_crashing(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     raw_files = _raw_files(tmp_path, n=2)
     output_dir = tmp_path / "products"
 
@@ -54,9 +54,40 @@ def test_discovery_represents_missing_products_without_crashing(tmp_path: Path) 
 
     discovered = discover_products(PRODUCT_IO_BY_STEP, raw_files, output_dir)
 
-    assert discovered["full-array"] == [output_dir / full_array.relative_path(raw_files[0])]
+    assert discovered["full-array"] == []
     assert discovered["grid-points"] == []
     assert discovered["averaged-grid"] is None
+    assert "Ignoring incomplete per-input product set" in caplog.text
+
+
+def test_dependency_aware_discovery_ignores_stale_downstream_products(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    raw_files = _raw_files(tmp_path, n=2)
+    output_dir = tmp_path / "products"
+
+    full_array = PRODUCT_IO_BY_STEP["full-array"]
+    averaged_grid = PRODUCT_IO_BY_STEP["averaged-grid"]
+
+    # Simulate a stale downstream product after one upstream per-input product
+    # has been deleted. The averaged-grid product exists on disk but should not
+    # be registered when dependency-aware discovery is enabled.
+    write_product(full_array, output_dir / full_array.relative_path(raw_files[0]))
+    stale_averaged = write_product(
+        averaged_grid,
+        output_dir / averaged_grid.relative_path(raw_files[0]),
+    )
+
+    discovered = discover_products(
+        PRODUCT_IO_BY_STEP,
+        raw_files,
+        output_dir,
+        stop_at_first_missing=True,
+        warn_stale=True,
+    )
+
+    assert discovered["full-array"] == []
+    assert "averaged-grid" not in discovered
+    assert stale_averaged.exists()
+    assert "Ignoring stale product" in caplog.text
 
 
 @pytest.fixture

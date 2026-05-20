@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum, auto
+import logging
 from pathlib import Path
 from typing import Any, Iterable, Callable
 
@@ -10,8 +11,11 @@ from ...errors import MissingProductError, PipelineStepError
 from .io_helpers import load_npz_dict, save_npz_dict
 
 
+logger = logging.getLogger(__name__)
+
 EncodeFunc = Callable[..., dict[str, Any]]
 DecodeFunc = Callable[[dict[str, Any]], Any]
+
 
 class ProductKind(Enum):
     PER_INPUT = auto()
@@ -163,7 +167,6 @@ class ProductIO:
 
         return self.load(paths[index])
 
-
     def save(
         self,
         *,
@@ -190,7 +193,6 @@ class ProductIO:
 
         self._cache.pop(str(Path(path)), None)
         return Path(path)
-
 
     def register(
         self,
@@ -225,11 +227,88 @@ class ProductIO:
         self._cache.clear()
 
 
+def _existing_product_paths(
+    product: ProductIO,
+    input_files: list[Path],
+    output_dir: Path,
+) -> Path | list[Path] | None:
+    """
+    Return existing product path(s), without deciding whether the step is usable.
+    """
+    if product.kind is ProductKind.SINGLETON:
+        path = output_dir / product.relative_path(input_files[0])
+        return path if path.exists() else None
+
+    if product.kind is ProductKind.PER_INPUT:
+        return [
+            output_dir / product.relative_path(infile)
+            for infile in input_files
+            if (output_dir / product.relative_path(infile)).exists()
+        ]
+
+    raise PipelineStepError(
+        f"Unsupported product kind for step {product.step_key!r}: {product.kind!r}"
+    )
+
+
+def _product_is_complete(
+    value: Path | list[Path] | None,
+    product: ProductIO,
+    *,
+    n_inputs: int,
+) -> bool:
+    """
+    Return whether a discovered product should be registered as available.
+    """
+    if product.kind is ProductKind.SINGLETON:
+        return value is not None
+
+    if product.kind is ProductKind.PER_INPUT:
+        return isinstance(value, list) and len(value) == n_inputs
+
+    raise PipelineStepError(
+        f"Unsupported product kind for step {product.step_key!r}: {product.kind!r}"
+    )
+
+
 def discover_products(
     product_io_by_step: dict[str, ProductIO],
     input_files: Iterable[Path],
     output_dir: Path,
+    *,
+    ordered_steps: Iterable[str] | None = None,
+    stop_at_first_missing: bool = False,
+    warn_stale: bool = False,
 ) -> dict[str, Any]:
+    """
+    Discover existing products for a calibration session.
+
+    Parameters
+    ----------
+    product_io_by_step : dict
+        Mapping from step key to :class:`ProductIO`.
+    input_files : iterable of :class:`pathlib.Path`
+        Raw files for the current session.
+    output_dir : :class:`pathlib.Path`
+        Directory where products are expected.
+    ordered_steps : iterable of str, optional
+        Explicit pipeline order. When omitted, the mapping insertion order is
+        used.
+    stop_at_first_missing : bool, optional
+        If ``True``, discovery stops registering products after the first
+        missing or incomplete step. Products found downstream are treated as
+        stale and are not returned.
+    warn_stale : bool, optional
+        If ``True``, log warnings for downstream products found after the first
+        missing or incomplete step.
+
+    Returns
+    -------
+    dict
+        Mapping from step key to registered product path(s). For per-input
+        products, a step is registered only when all expected per-input files
+        exist.
+    """
     input_files = [Path(p) for p in input_files]
 
     if not input_files:
@@ -238,29 +317,44 @@ def discover_products(
         )
 
     output_dir = Path(output_dir)
+    step_order = list(ordered_steps) if ordered_steps is not None else list(product_io_by_step)
     results: dict[str, Any] = {}
+    blocked_by: str | None = None
 
-    for step_key, product in product_io_by_step.items():
+    for step_key in step_order:
+        product = product_io_by_step.get(step_key)
+
         if product is None:
             continue
 
-        if product.kind is ProductKind.SINGLETON:
-            path = output_dir / product.relative_path(input_files[0])
-            results[step_key] = path if path.exists() else None
+        value = _existing_product_paths(product, input_files, output_dir)
+        complete = _product_is_complete(value, product, n_inputs=len(input_files))
 
-        elif product.kind is ProductKind.PER_INPUT:
-            paths = []
+        if blocked_by is not None:
+            if warn_stale and value:
+                logger.warning(
+                    "Ignoring stale product(s) for step %r because earlier step %r "
+                    "is missing or incomplete.",
+                    step_key,
+                    blocked_by,
+                )
+            continue
 
-            for infile in input_files:
-                path = output_dir / product.relative_path(infile)
-                if path.exists():
-                    paths.append(path)
+        if complete:
+            results[step_key] = value
+            continue
 
-            results[step_key] = paths
-
-        else:
-            raise PipelineStepError(
-                f"Unsupported product kind for step {step_key!r}: {product.kind!r}"
+        if product.kind is ProductKind.PER_INPUT and value:
+            logger.warning(
+                "Ignoring incomplete per-input product set for step %r: found %d/%d.",
+                step_key,
+                len(value),
+                len(input_files),
             )
+
+        results[step_key] = [] if product.kind is ProductKind.PER_INPUT else None
+
+        if stop_at_first_missing:
+            blocked_by = step_key
 
     return results

@@ -247,7 +247,7 @@ def test_load_index_rejects_out_of_range_index(
         per_input_product.load_index(1)
 
 
-def test_discover_products_returns_existing_singleton_and_per_input_paths(tmp_path: Path) -> None:
+def test_discover_products_requires_complete_per_input_products(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     input_files = [tmp_path / "img_001_raw.jpg", tmp_path / "img_002_raw.jpg"]
     output_dir = tmp_path / "products"
     singleton = ProductIO(
@@ -281,8 +281,68 @@ def test_discover_products_returns_existing_singleton_and_per_input_paths(tmp_pa
 
     assert discovered == {
         "averaged-grid": singleton_path,
-        "grid-points": [per_input_path],
+        "grid-points": [],
     }
+    assert "Ignoring incomplete per-input product set" in caplog.text
+
+
+def test_discover_products_returns_complete_per_input_products(tmp_path: Path) -> None:
+    input_files = [tmp_path / "img_001_raw.jpg", tmp_path / "img_002_raw.jpg"]
+    output_dir = tmp_path / "products"
+    per_input = ProductIO(
+        step_key="grid-points",
+        suffix="_grid_points.npz",
+        kind=ProductKind.PER_INPUT,
+        required_keys=("grid",),
+    )
+
+    expected = []
+    for input_file in input_files:
+        path = output_dir / per_input.relative_path(input_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        expected.append(path)
+
+    discovered = discover_products(
+        {"grid-points": per_input},
+        input_files,
+        output_dir,
+    )
+
+    assert discovered == {"grid-points": expected}
+
+
+def test_discover_products_can_ignore_downstream_stale_products(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    input_files = [tmp_path / "img_001_raw.jpg", tmp_path / "img_002_raw.jpg"]
+    output_dir = tmp_path / "products"
+    upstream = ProductIO(
+        step_key="grid-points",
+        suffix="_grid_points.npz",
+        kind=ProductKind.PER_INPUT,
+        required_keys=("grid",),
+    )
+    downstream = ProductIO(
+        step_key="averaged-grid",
+        suffix="_averaged_grid.npz",
+        kind=ProductKind.SINGLETON,
+        required_keys=("grid",),
+    )
+
+    stale_path = output_dir / downstream.relative_path(input_files[0])
+    stale_path.parent.mkdir(parents=True)
+    stale_path.touch()
+
+    discovered = discover_products(
+        {"grid-points": upstream, "averaged-grid": downstream},
+        input_files,
+        output_dir,
+        ordered_steps=["grid-points", "averaged-grid"],
+        stop_at_first_missing=True,
+        warn_stale=True,
+    )
+
+    assert discovered == {"grid-points": []}
+    assert "Ignoring stale product" in caplog.text
 
 
 def test_discover_products_requires_at_least_one_input(tmp_path: Path) -> None:

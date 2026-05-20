@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .workflow.registry import PRODUCT_IO_BY_STEP
+from .workflow.registry import ORDERED_STEPS, PRODUCT_IO_BY_STEP
 from .workflow.product_io import discover_products
 from ..errors import PipelineStepError, GridCalibrationError
 
@@ -48,6 +48,9 @@ class CalibrationSession:
                 PRODUCT_IO_BY_STEP,
                 raw_files,
                 output_dir,
+                ordered_steps=ORDERED_STEPS,
+                stop_at_first_missing=True,
+                warn_stale=True,
             )
         )
 
@@ -70,10 +73,24 @@ class CalibrationSession:
         self.products[step] = value
 
     def refresh_products(self) -> None:
-        self.products.update(
+        """
+        Rediscover products from disk using ordered, dependency-aware discovery.
+
+        Existing product registrations are replaced rather than updated so stale
+        downstream products cannot remain registered after an upstream product is
+        removed.
+        """
+        products = {
+            "raw-image": self.raw_files,
+        }
+        products.update(
             discover_products(
                 PRODUCT_IO_BY_STEP,
                 self.raw_files,
                 self.output_dir,
+                ordered_steps=ORDERED_STEPS,
+                stop_at_first_missing=True,
+                warn_stale=True,
             )
         )
+        self.products = products
