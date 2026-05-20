@@ -1,4 +1,12 @@
 # grid_calibration/gui/steps/modeling_results/plotting.py
+"""
+Plotting and interactive-layout helpers for the modeling-results step.
+
+This module renders model residual diagnostics in the Dash GUI. The numerical
+model definition and optimization logic live in the
+:mod:`grid_calibration.gui.steps.modeling_results.processing` package.
+"""
+
 from __future__ import annotations
 
 import numpy as np

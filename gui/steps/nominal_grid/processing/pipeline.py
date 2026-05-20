@@ -1,4 +1,9 @@
-"""Top-level nominal-grid assignment pipeline."""
+"""
+Top-level nominal-grid assignment pipeline.
+
+The pipeline orchestrates grouping, ring-level estimation, spoke-angle
+assignment, radial-shift diagnostics, and final record construction.
+"""
 
 from __future__ import annotations
 

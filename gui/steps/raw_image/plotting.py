@@ -1,4 +1,18 @@
 # grid_calibration/gui/steps/raw_image/plotting.py
+"""
+Viewer utilities for the raw-image step.
+
+The raw-image viewer displays the four Bayer channels from one selected GONet
+raw image. It is used by
+:attr:`grid_calibration.gui.workflow.specs.PipelineStepSpec.viewer_func` for the
+``"raw-image"`` step and is called by the shared viewer callback in
+:mod:`grid_calibration.gui.callbacks.viewer`.
+
+This module is intentionally viewer-only. It does not save products and does
+not update the active :class:`~grid_calibration.gui.session.CalibrationSession`.
+The session is only queried for the list of input files registered under the
+raw-image step key.
+"""
 
 from __future__ import annotations
 
@@ -17,9 +31,39 @@ from .keys import STEP_KEY
 
 # Server-side cache: filepath -> channel -> float32 2D array
 _RAW_CHANNEL_CACHE: Dict[str, Dict[str, np.ndarray]] = {}
+"""
+In-memory cache of decoded raw-image channels.
+
+Keys are raw-image file paths converted to strings. Values are dictionaries
+mapping channel names to two-dimensional :class:`numpy.ndarray` objects. The
+cache avoids repeatedly decoding large raw files while the user switches between
+steps or revisits the same image in the GUI.
+"""
 
 
 def _load_raw_channels(file_path: Path) -> Dict[str, np.ndarray]:
+    """
+    Load and cache the four raw Bayer channels for one image.
+
+    Parameters
+    ----------
+    file_path : :class:`~pathlib.Path`
+        Path to a GONet raw image readable by
+        :meth:`GONet_Wizard.GONet_utils.GONetFileRaw.from_file`.
+
+    Returns
+    -------
+    :class:`dict`
+        Mapping from channel name to two-dimensional
+        :class:`numpy.ndarray`. The expected keys are ``"red"``, ``"green1"``,
+        ``"green2"``, and ``"blue"``.
+
+    Notes
+    -----
+    The decoded arrays are cached in :data:`_RAW_CHANNEL_CACHE` using the string
+    form of ``file_path``. The raw image overscan region is removed before the
+    channel arrays are extracted.
+    """
     key = str(file_path)
     if key in _RAW_CHANNEL_CACHE:
         return _RAW_CHANNEL_CACHE[key]
@@ -38,6 +82,28 @@ def _load_raw_channels(file_path: Path) -> Dict[str, np.ndarray]:
 
 
 def plot_raw_image(idx: int):
+    """
+    Render the selected raw image as a four-panel Plotly viewer.
+
+    The function is the public viewer callable for the raw-image step. It reads
+    the current :class:`~grid_calibration.gui.session.CalibrationSession`,
+    retrieves the input file list stored under :data:`STEP_KEY`, loads the
+    selected image channels, and returns a Dash component containing a
+    :class:`dash.dcc.Graph`.
+
+    Parameters
+    ----------
+    idx : :class:`int`
+        Index of the raw image to display within the session's ``"raw-image"``
+        file list.
+
+    Returns
+    -------
+    :class:`dash.html.Div`
+        A Dash container. On success it contains a four-panel Plotly graph. If
+        no raw files are registered or ``idx`` is outside the valid range, it
+        contains a small error placeholder instead.
+    """
     from ...session import get_session
     session = get_session()
     data_files = session.get(STEP_KEY)

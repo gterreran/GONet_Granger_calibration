@@ -6,6 +6,10 @@ This module provides a small logging layer shared by the Dash callbacks,
 processing steps, and GUI log window.  The key design goal is that application
 logs are collected in one predictable place without globally hijacking every
 third-party logger.
+
+The GUI log window reads from :data:`global_log_handler`, while
+:func:`log_step` uses a :class:`contextvars.ContextVar` to attach the current
+workflow step key to log records emitted during step execution.
 """
 
 from __future__ import annotations
@@ -22,7 +26,10 @@ from typing import Iterator
 # GUI captures useful progress messages without opening the floodgates to all
 # third-party logging.
 FULL_ARRAY_LOGGER = "GONet_Wizard.GONet_utils.src.gonet.analysis_utils.full_array"
+""":class:`str`: External logger name captured for full-array progress output."""
+
 DEFAULT_EXTERNAL_LOGGERS = (FULL_ARRAY_LOGGER,)
+"""tuple[str, ...]: External loggers routed into the GUI log window by default."""
 
 _APP_LOGGER_NAME = __name__.split(".gui.", 1)[0]
 _step_context: ContextVar[str] = ContextVar("grid_calibration_step", default="-")
@@ -37,6 +44,19 @@ class StepContextFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """
+        Ensure that ``record.step_key`` is available to the formatter.
+
+        Parameters
+        ----------
+        record : :class:`logging.LogRecord`
+            Record being processed by the logging system.
+
+        Returns
+        -------
+        :class:`bool`
+            Always ``True`` so the record remains eligible for emission.
+        """
         if not hasattr(record, "step_key"):
             record.step_key = _step_context.get()
         return True
@@ -45,6 +65,11 @@ class StepContextFilter(logging.Filter):
 class DashLogHandler(logging.Handler):
     """
     In-memory log handler consumed by the Dash log window.
+
+    Parameters
+    ----------
+    max_entries : :class:`int`, optional
+        Maximum number of formatted log lines retained in the rolling buffer.
     """
 
     def __init__(self, max_entries: int = 5000) -> None:
@@ -53,6 +78,19 @@ class DashLogHandler(logging.Handler):
         self._lock = Lock()
 
     def emit(self, record: logging.LogRecord) -> None:
+        """
+        Format and append one log record to the in-memory buffer.
+
+        Parameters
+        ----------
+        record : :class:`logging.LogRecord`
+            Record emitted by a configured logger.
+
+        Returns
+        -------
+        :class:`None`
+            The internal buffer is modified in place.
+        """
         try:
             message = self.format(record)
         except Exception:
@@ -63,19 +101,45 @@ class DashLogHandler(logging.Handler):
             self.buffer.append(message)
 
     def get_logs(self) -> str:
+        """
+        Return the complete buffered log text.
+
+        Returns
+        -------
+        :class:`str`
+            Buffered log messages joined by newline characters.
+        """
         with self._lock:
             return "\n".join(self.buffer)
 
     def clear(self) -> None:
+        """
+        Clear the in-memory log buffer.
+
+        Returns
+        -------
+        :class:`None`
+            The internal buffer is emptied in place.
+        """
         with self._lock:
             self.buffer.clear()
 
 
 global_log_handler = DashLogHandler()
+""":class:`DashLogHandler`: Shared handler read by the GUI log-window callback."""
+
 _step_context_filter = StepContextFilter()
 
 
 def _make_formatter() -> logging.Formatter:
+    """
+    Build the formatter used by the GUI log window.
+
+    Returns
+    -------
+    :class:`logging.Formatter`
+        Formatter that includes time, level, step key, and message.
+    """
     return logging.Formatter(
         fmt="%(asctime)s | %(levelname)-7s | %(step_key)s | %(message)s",
         datefmt="%H:%M:%S",
@@ -83,6 +147,23 @@ def _make_formatter() -> logging.Formatter:
 
 
 def _attach_handler(logger: logging.Logger, *, level: int, propagate: bool) -> None:
+    """
+    Attach the shared GUI handler to one logger.
+
+    Parameters
+    ----------
+    logger : :class:`logging.Logger`
+        Logger to configure.
+    level : :class:`int`
+        Minimum log level for the logger.
+    propagate : :class:`bool`
+        Whether records should continue propagating to ancestor loggers.
+
+    Returns
+    -------
+    :class:`None`
+        The logger is modified in place.
+    """
     logger.setLevel(level)
 
     if global_log_handler not in logger.handlers:
@@ -109,6 +190,11 @@ def configure_gui_logging(
         window.  This is intentionally opt-in to avoid noisy dependency logs.
     clear_existing : :class:`bool`
         If ``True``, clear the GUI log buffer before attaching handlers.
+
+    Returns
+    -------
+    :class:`None`
+        Logging configuration is updated in place.
     """
 
     if clear_existing:
@@ -138,6 +224,11 @@ def configure_gui_logging(
 def silence_server_loggers() -> None:
     """
     Reduce routine Flask/Werkzeug/Dash startup chatter.
+
+    Returns
+    -------
+    :class:`None`
+        Known server loggers are set to :data:`logging.ERROR`.
     """
 
     for logger_name in ("werkzeug", "dash", "dash.dash", "flask.app"):
@@ -148,6 +239,17 @@ def silence_server_loggers() -> None:
 def log_step(step_key: str) -> Iterator[None]:
     """
     Temporarily attach a pipeline step label to emitted log records.
+
+    Parameters
+    ----------
+    step_key : :class:`str`
+        Workflow step key to expose as ``record.step_key`` while the context is
+        active.
+
+    Returns
+    -------
+    collections.abc.Iterator[None]
+        Context manager iterator used by :code:`with` statements.
     """
 
     token = _step_context.set(step_key)

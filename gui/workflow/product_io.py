@@ -1,4 +1,25 @@
 # grid_calibration/gui/workflow/product_io.py
+"""
+Product path, schema, loading, saving, and discovery helpers.
+
+This module defines the product contract used by the grid-calibration workflow.
+A product is an intermediate or final ``.npz`` artifact produced by a pipeline
+step, such as a full-array image, detected grid points, an averaged grid, a
+nominal-grid assignment, or modeling results.
+
+The central abstraction is :class:`~grid_calibration.gui.workflow.product_io.ProductIO`.
+Each step package declares one :class:`~grid_calibration.gui.workflow.product_io.ProductIO`
+instance in its ``spec.py`` module. That object owns the rules for deriving
+filenames, resolving paths, validating NPZ schemas, encoding and decoding
+semantic payloads, registering products in session state, and discovering
+existing products at GUI startup.
+
+Keeping these responsibilities in this module prevents individual step modules
+from duplicating path conventions, ``numpy`` loading logic, and schema checks.
+The :class:`~grid_calibration.gui.session.CalibrationSession` stores runtime
+state, while :class:`~grid_calibration.gui.workflow.product_io.ProductIO`
+defines how each product behaves.
+"""
 
 from __future__ import annotations
 
@@ -14,15 +35,93 @@ from .io_helpers import load_npz_dict, save_npz_dict
 logger = logging.getLogger(__name__)
 
 EncodeFunc = Callable[..., dict[str, Any]]
+"""Callable used to convert semantic save arguments into NPZ arrays.
+
+The callable receives the keyword arguments passed to
+:meth:`~grid_calibration.gui.workflow.product_io.ProductIO.save` and must return
+a dictionary whose keys match the product's required and optional NPZ schema.
+"""
+
 DecodeFunc = Callable[[dict[str, Any]], Any]
+"""Callable used to convert loaded NPZ arrays into a semantic Python object.
+
+The callable receives the validated dictionary returned by
+:func:`~grid_calibration.gui.workflow.io_helpers.load_npz_dict` and may return
+any object expected by downstream code.
+"""
 
 
 class ProductKind(Enum):
+    """Enumeration describing how many files a step product owns.
+
+    Attributes
+    ----------
+    PER_INPUT
+        Product kind for steps that produce one artifact per raw input image.
+
+    SINGLETON
+        Product kind for steps that produce one artifact for the whole session.
+    """
+
     PER_INPUT = auto()
     SINGLETON = auto()
 
 
 class ProductIO:
+    """Define the IO contract for one workflow product.
+
+    A :class:`ProductIO` instance is the single source of truth for a step's
+    product naming convention, product kind, NPZ schema, optional encode/decode
+    hooks, session registration behavior, and load cache.
+
+    Parameters
+    ----------
+    step_key : :class:`str`
+        Workflow step key associated with this product. This key must match the
+        corresponding
+        :attr:`~grid_calibration.gui.workflow.specs.PipelineStepSpec.key`.
+
+    suffix : :class:`str`
+        Filename suffix appended to the derived product stem. For per-input
+        products, the stem comes from the full raw-input stem. For singleton
+        products, the stem is derived from the first three underscore-separated
+        parts of the first raw-input stem.
+
+    kind : :class:`~grid_calibration.gui.workflow.product_io.ProductKind`
+        Product multiplicity. Use
+        :attr:`~grid_calibration.gui.workflow.product_io.ProductKind.PER_INPUT`
+        for one product per raw file and
+        :attr:`~grid_calibration.gui.workflow.product_io.ProductKind.SINGLETON`
+        for one product per session.
+
+    required_keys : :class:`tuple` [:class:`str`, ...], optional
+        Required NPZ keys. Missing required keys raise
+        :class:`~grid_calibration.errors.ProductLoadError` during load and
+        :class:`~grid_calibration.errors.ProductSaveError` during save.
+
+    optional_keys : :class:`tuple` [:class:`str`, ...], optional
+        Optional NPZ keys accepted by the product schema.
+
+    allow_pickle : :class:`bool`, optional
+        Whether loading this product may use pickle-backed object arrays. This
+        should be enabled only for semantic products that intentionally store
+        dictionaries or other object arrays.
+
+    encode : :data:`~grid_calibration.gui.workflow.product_io.EncodeFunc`, optional
+        Callable used before saving. It converts semantic keyword arguments into
+        NPZ-compatible arrays.
+
+    decode : :data:`~grid_calibration.gui.workflow.product_io.DecodeFunc`, optional
+        Callable used after loading. It converts validated NPZ arrays into the
+        object consumed by the rest of the pipeline.
+
+    Notes
+    -----
+    :class:`ProductIO` does not own the session. Instead, methods such as
+    :meth:`expected_path`, :meth:`get`, :meth:`register`, and :meth:`save`
+    access the active :class:`~grid_calibration.gui.session.CalibrationSession`
+    through :func:`~grid_calibration.gui.session.get_session`.
+    """
     def __init__(
         self,
         *,
@@ -47,13 +146,49 @@ class ProductIO:
 
     @property
     def is_singleton(self) -> bool:
+        """Return whether this product has one file per session.
+
+        Returns
+        -------
+        :class:`bool`
+            ``True`` when :attr:`kind` is
+            :attr:`~grid_calibration.gui.workflow.product_io.ProductKind.SINGLETON`.
+        """
         return self.kind is ProductKind.SINGLETON
 
     @property
     def is_per_input(self) -> bool:
+        """Return whether this product has one file per raw input.
+
+        Returns
+        -------
+        :class:`bool`
+            ``True`` when :attr:`kind` is
+            :attr:`~grid_calibration.gui.workflow.product_io.ProductKind.PER_INPUT`.
+        """
         return self.kind is ProductKind.PER_INPUT
 
     def relative_path(self, input_file: Path) -> Path:
+        """Return the product path relative to the output directory.
+
+        Parameters
+        ----------
+        input_file : :class:`pathlib.Path`
+            Raw input file used to derive the product filename.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Relative product path. Per-input products use the full input stem,
+            while singleton products use the first three underscore-separated
+            stem components.
+
+        Notes
+        -----
+        This method performs filename construction only. It does not check
+        whether the product exists and does not prepend the session output
+        directory. Use :meth:`expected_path` when an absolute path is needed.
+        """
         input_file = Path(input_file)
 
         if self.is_singleton:
@@ -63,6 +198,33 @@ class ProductIO:
         return Path(f"{input_file.stem}{self.suffix}")
 
     def expected_path(self, input_file: Path | None = None) -> Path:
+        """Return the expected absolute product path in the active session.
+
+        Parameters
+        ----------
+        input_file : :class:`pathlib.Path` or :data:`None`, optional
+            Raw input file used to derive the product filename. This argument is
+            required for per-input products and optional for singleton products.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Absolute path under
+            :attr:`~grid_calibration.gui.session.CalibrationSession.output_dir`.
+
+        Raises
+        ------
+        :class:`~grid_calibration.errors.MissingProductError`
+            Raised when this product is per-input and no ``input_file`` is
+            provided.
+
+        Notes
+        -----
+        Singleton products may omit ``input_file`` because their stem is derived
+        from :attr:`~grid_calibration.gui.session.CalibrationSession.first_raw_file`.
+        Per-input products must never silently use the first raw file, because
+        doing so can save or load the wrong product.
+        """
         from ..session import get_session
 
         session = get_session()
@@ -76,14 +238,19 @@ class ProductIO:
         return session.output_dir / self.relative_path(input_file)
 
     def get(self) -> Path | list[Path] | None:
-        """
-        Return the currently registered product path(s).
+        """Return the product path or paths currently registered in the session.
 
         Returns
         -------
-        Path | list[Path] | None
-            For singleton products, returns ``Path`` or ``None``.
-            For per-input products, returns ``list[Path]``.
+        :class:`pathlib.Path` or :class:`list` [:class:`pathlib.Path`] or :data:`None`
+            For singleton products, returns a path or :data:`None`. For
+            per-input products, returns a list of paths, which may be empty.
+
+        Notes
+        -----
+        This method reads
+        :attr:`~grid_calibration.gui.session.CalibrationSession.products`; it
+        does not check whether the returned paths still exist on disk.
         """
         from ..session import get_session
 
@@ -95,8 +262,17 @@ class ProductIO:
         return [Path(p) for p in (value or [])]
 
     def require(self) -> Path | list[Path]:
-        """
-        Return the currently registered product path(s), raising if missing.
+        """Return registered product paths, raising when none are available.
+
+        Returns
+        -------
+        :class:`pathlib.Path` or :class:`list` [:class:`pathlib.Path`]
+            Registered singleton path or registered per-input path list.
+
+        Raises
+        ------
+        :class:`~grid_calibration.errors.MissingProductError`
+            Raised when no path is registered for this product.
         """
         value = self.get()
 
@@ -115,11 +291,35 @@ class ProductIO:
         return value
 
     def load(self, path: Path | None = None) -> dict[str, Any]:
-        """
-        Load an NPZ product.
+        """Load and optionally decode an NPZ product.
 
-        For singleton products, ``path`` may be omitted.
-        For per-input products, ``path`` should usually be provided.
+        Parameters
+        ----------
+        path : :class:`pathlib.Path` or :data:`None`, optional
+            Product path to load. Singleton products may omit this argument, in
+            which case the registered path is loaded. Per-input products must
+            provide an explicit path.
+
+        Returns
+        -------
+        :class:`dict` [:class:`str`, :class:`typing.Any`]
+            Loaded product data, or the object returned by ``decode`` when a
+            decode hook is configured.
+
+        Raises
+        ------
+        :class:`~grid_calibration.errors.MissingProductError`
+            Raised when a per-input product is loaded without an explicit path,
+            or when no registered singleton product exists.
+
+        :class:`~grid_calibration.errors.ProductLoadError`
+            Raised by :func:`~grid_calibration.gui.workflow.io_helpers.load_npz_dict`
+            when the product is missing required schema keys or cannot be read.
+
+        Notes
+        -----
+        Loaded products are cached by path string. Use :meth:`clear_cache` to
+        force a subsequent load from disk.
         """
         if path is None:
             if self.is_per_input:
@@ -150,8 +350,26 @@ class ProductIO:
         return loaded
 
     def load_index(self, index: int) -> dict[str, Any]:
-        """
-        Load one per-input product by index.
+        """Load one registered per-input product by list index.
+
+        Parameters
+        ----------
+        index : :class:`int`
+            Index into the registered per-input product list.
+
+        Returns
+        -------
+        :class:`dict` [:class:`str`, :class:`typing.Any`]
+            Loaded product data for the selected input, or the object returned
+            by the product's decode hook.
+
+        Raises
+        ------
+        :class:`TypeError`
+            Raised when this method is called for a singleton product.
+
+        :class:`~grid_calibration.errors.MissingProductError`
+            Raised when ``index`` is outside the registered product list.
         """
         paths = self.require()
 
@@ -174,6 +392,38 @@ class ProductIO:
         path: Path | None = None,
         **arrays: Any,
     ) -> Path:
+        """Save a product to disk and invalidate its cached load entry.
+
+        Parameters
+        ----------
+        input_file : :class:`pathlib.Path` or :data:`None`, optional
+            Raw input file used to derive the output path when ``path`` is not
+            provided. Required for per-input products unless ``path`` is given.
+
+        path : :class:`pathlib.Path` or :data:`None`, optional
+            Explicit output path. When omitted, the path is computed with
+            :meth:`expected_path`.
+
+        **arrays : :class:`typing.Any`
+            Product payload. If ``encode`` is configured, these keyword
+            arguments are passed to the encode hook before schema validation and
+            saving.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            Path where the product was written.
+
+        Raises
+        ------
+        :class:`~grid_calibration.errors.MissingProductError`
+            Raised when saving a per-input product without either ``input_file``
+            or an explicit ``path``.
+
+        :class:`~grid_calibration.errors.ProductSaveError`
+            Raised by :func:`~grid_calibration.gui.workflow.io_helpers.save_npz_dict`
+            when required keys are missing or unexpected keys are provided.
+        """
         if path is None:
             if self.is_per_input and input_file is None:
                 raise MissingProductError(
@@ -200,6 +450,39 @@ class ProductIO:
         *,
         input_file: Path | None = None,
     ) -> Path | list[Path]:
+        """Register product path information in the active session.
+
+        Parameters
+        ----------
+        value : :class:`pathlib.Path` or :class:`list` [:class:`pathlib.Path`] or :data:`None`, optional
+            Path or path list to register. Singleton products may omit this
+            argument, in which case :meth:`expected_path` is used. Per-input
+            products must provide a list of paths.
+
+        input_file : :class:`pathlib.Path` or :data:`None`, optional
+            Raw input used to derive the default singleton path when ``value`` is
+            omitted.
+
+        Returns
+        -------
+        :class:`pathlib.Path` or :class:`list` [:class:`pathlib.Path`]
+            Registered path or list of registered paths.
+
+        Raises
+        ------
+        :class:`~grid_calibration.errors.MissingProductError`
+            Raised when attempting to register a per-input product without an
+            explicit path list.
+
+        :class:`TypeError`
+            Raised when the provided value does not match the product kind.
+
+        Notes
+        -----
+        Registration updates
+        :attr:`~grid_calibration.gui.session.CalibrationSession.products`; it
+        does not save data and does not validate file contents.
+        """
         if value is None:
             if self.is_per_input:
                 raise MissingProductError(
@@ -224,6 +507,13 @@ class ProductIO:
         return paths
 
     def clear_cache(self) -> None:
+        """Clear all cached loaded products for this IO object.
+
+        Returns
+        -------
+        :data:`None`
+            This method mutates the internal cache in place.
+        """
         self._cache.clear()
 
 
@@ -232,8 +522,29 @@ def _existing_product_paths(
     input_files: list[Path],
     output_dir: Path,
 ) -> Path | list[Path] | None:
-    """
-    Return existing product path(s), without deciding whether the step is usable.
+    """Return existing product paths without deciding availability.
+
+    Parameters
+    ----------
+    product : :class:`~grid_calibration.gui.workflow.product_io.ProductIO`
+        Product definition used to compute expected paths.
+
+    input_files : :class:`list` [:class:`pathlib.Path`]
+        Raw input files for the current session.
+
+    output_dir : :class:`pathlib.Path`
+        Directory where products are expected.
+
+    Returns
+    -------
+    :class:`pathlib.Path` or :class:`list` [:class:`pathlib.Path`] or :data:`None`
+        Existing singleton path, list of existing per-input paths, or
+        :data:`None` when a singleton product is absent.
+
+    Raises
+    ------
+    :class:`~grid_calibration.errors.PipelineStepError`
+        Raised when ``product.kind`` is unsupported.
     """
     if product.kind is ProductKind.SINGLETON:
         path = output_dir / product.relative_path(input_files[0])
@@ -257,8 +568,30 @@ def _product_is_complete(
     *,
     n_inputs: int,
 ) -> bool:
-    """
-    Return whether a discovered product should be registered as available.
+    """Return whether a discovered product set is complete.
+
+    Parameters
+    ----------
+    value : :class:`pathlib.Path` or :class:`list` [:class:`pathlib.Path`] or :data:`None`
+        Candidate product path or path list returned by
+        :func:`_existing_product_paths`.
+
+    product : :class:`~grid_calibration.gui.workflow.product_io.ProductIO`
+        Product definition used to interpret ``value``.
+
+    n_inputs : :class:`int`
+        Number of raw inputs expected for the session.
+
+    Returns
+    -------
+    :class:`bool`
+        ``True`` for existing singleton products and for per-input products with
+        exactly one product per raw input.
+
+    Raises
+    ------
+    :class:`~grid_calibration.errors.PipelineStepError`
+        Raised when ``product.kind`` is unsupported.
     """
     if product.kind is ProductKind.SINGLETON:
         return value is not None
@@ -280,34 +613,64 @@ def discover_products(
     stop_at_first_missing: bool = False,
     warn_stale: bool = False,
 ) -> dict[str, Any]:
-    """
-    Discover existing products for a calibration session.
+    """Discover existing products for a calibration session.
 
     Parameters
     ----------
-    product_io_by_step : dict
-        Mapping from step key to :class:`ProductIO`.
-    input_files : iterable of :class:`pathlib.Path`
-        Raw files for the current session.
+    product_io_by_step : :class:`dict` [:class:`str`, :class:`~grid_calibration.gui.workflow.product_io.ProductIO`]
+        Mapping from workflow step key to product definition. Entries with
+        :data:`None` values are ignored.
+
+    input_files : :class:`collections.abc.Iterable` [:class:`pathlib.Path`]
+        Raw files for the current session. At least one input is required
+        because singleton product names are derived from the first raw input.
+
     output_dir : :class:`pathlib.Path`
         Directory where products are expected.
-    ordered_steps : iterable of str, optional
-        Explicit pipeline order. When omitted, the mapping insertion order is
-        used.
-    stop_at_first_missing : bool, optional
+
+    ordered_steps : :class:`collections.abc.Iterable` [:class:`str`] or :data:`None`, optional
+        Explicit pipeline order. When omitted, the insertion order of
+        ``product_io_by_step`` is used.
+
+    stop_at_first_missing : :class:`bool`, optional
         If ``True``, discovery stops registering products after the first
         missing or incomplete step. Products found downstream are treated as
-        stale and are not returned.
-    warn_stale : bool, optional
-        If ``True``, log warnings for downstream products found after the first
-        missing or incomplete step.
+        stale and are not returned. This is the safety-net mode used by
+        :meth:`~grid_calibration.gui.session.CalibrationSession.from_inputs`
+        and :meth:`~grid_calibration.gui.session.CalibrationSession.refresh_products`.
+
+    warn_stale : :class:`bool`, optional
+        If ``True``, log warnings when downstream products are found after an
+        earlier step is missing or incomplete.
 
     Returns
     -------
-    dict
-        Mapping from step key to registered product path(s). For per-input
-        products, a step is registered only when all expected per-input files
-        exist.
+    :class:`dict` [:class:`str`, :class:`typing.Any`]
+        Mapping from step key to discovered product path information. Singleton
+        products are represented as :class:`pathlib.Path` or :data:`None`.
+        Per-input products are represented as a list of paths. Incomplete
+        per-input product sets are returned as an empty list and are not treated
+        as available.
+
+    Raises
+    ------
+    :class:`~grid_calibration.errors.PipelineStepError`
+        Raised when ``input_files`` is empty or when a product uses an
+        unsupported :class:`ProductKind`.
+
+    Notes
+    -----
+    The function separates two questions:
+
+    * whether a product file exists on disk, and
+    * whether that product should be registered as usable.
+
+    A per-input step is usable only when all expected files exist. In
+    dependency-aware mode, enabled with ``stop_at_first_missing=True``,
+    discovery will also ignore downstream products once an earlier required
+    step is unavailable. This prevents stale products from later workflow stages
+    from making the GUI appear to be in a valid state when an upstream product
+    has been deleted.
     """
     input_files = [Path(p) for p in input_files]
 

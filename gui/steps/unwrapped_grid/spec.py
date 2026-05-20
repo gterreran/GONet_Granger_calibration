@@ -1,5 +1,8 @@
 # grid_calibration/gui/steps/unwrapped_grid/spec.py
 from __future__ import annotations
+
+"""Workflow specification and singleton-product descriptor for the unwrapped-grid step."""
+
 from ...workflow import PipelineStepSpec, ProductKind, ProductIO
 from .keys import STEP_KEY, REQUIRED_ARRAY_KEYS, IDX_KEY, THETA_KEY, R_KEY, POINTS_KEY, CENTER_KEY
 from ...workflow.io_helpers import maybe_item

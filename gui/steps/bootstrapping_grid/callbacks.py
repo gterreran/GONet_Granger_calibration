@@ -1,4 +1,13 @@
 # grid_calibration/gui/steps/bootstrapping_grid/callbacks.py
+"""
+Interactive Dash callbacks for the bootstrapping-grid step.
+
+The callbacks in this module connect the step controls to the processing
+pipeline, update the active
+:class:`~grid_calibration.gui.session.CalibrationSession`, and emit the shared
+step-completion event consumed by the generic pipeline callbacks.
+"""
+
 from __future__ import annotations
 
 from typing import Optional

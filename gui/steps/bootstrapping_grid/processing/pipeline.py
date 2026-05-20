@@ -1,4 +1,9 @@
-"""Top-level bootstrapping pipeline orchestration."""
+"""
+Top-level bootstrapping-grid processing pipeline.
+
+The pipeline orchestrates dense-grid loading, spoke bootstrapping, circle
+assignment, cleanup, and conversion into distortion-model-ready records.
+"""
 
 from __future__ import annotations
 

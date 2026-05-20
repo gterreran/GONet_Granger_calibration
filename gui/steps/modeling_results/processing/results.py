@@ -1,3 +1,7 @@
+"""
+Fit-result containers and residual summary helpers.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

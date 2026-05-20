@@ -1,3 +1,5 @@
+"""Product keys and schema constants for the unwrapped-grid step."""
+
 # grid_calibration/gui/steps/unwrapped_grid/key.py
 
 STEP_KEY = "unwrapped-grid"

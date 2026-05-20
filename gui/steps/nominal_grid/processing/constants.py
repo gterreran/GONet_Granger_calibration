@@ -1,4 +1,6 @@
-"""Constants used by nominal-grid processing."""
+"""
+Shared constants for nominal-grid processing.
+"""
 
 from __future__ import annotations
 

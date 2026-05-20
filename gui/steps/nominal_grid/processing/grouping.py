@@ -1,4 +1,9 @@
-"""Point grouping helpers for nominal-grid assignment."""
+"""
+Grouping utilities for nominal-grid processing.
+
+This module identifies ring-like and spoke-like fragments in the measured
+``(theta, r)`` point cloud before nominal labels are assigned.
+"""
 
 from __future__ import annotations
 

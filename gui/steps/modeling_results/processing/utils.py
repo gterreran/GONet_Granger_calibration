@@ -1,3 +1,7 @@
+"""
+Small numerical utilities used by modeling-results processing.
+"""
+
 from __future__ import annotations
 
 import numpy as np

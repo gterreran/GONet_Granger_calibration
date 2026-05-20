@@ -1,3 +1,7 @@
+"""
+Least-squares fitting and optional outlier-refit logic for the distortion model.
+"""
+
 from __future__ import annotations
 
 import logging

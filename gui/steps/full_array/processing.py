@@ -1,4 +1,13 @@
 # grid_calibration/gui/steps/full_array/processing.py
+"""
+Batch processing function for building full-array products.
+
+This module contains the pipeline callable used by the full-array
+:class:`~grid_calibration.gui.workflow.specs.PipelineStepSpec`. It delegates the
+actual full-array construction to :mod:`GONet_Wizard`, then registers the
+generated per-input products through the step's
+:class:`~grid_calibration.gui.workflow.product_io.ProductIO`.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +27,26 @@ def build_full_arrays_for_images(
     image_paths: List[Path],
 ) -> List[Path]:
     """
-    Run build_full_array on each input JPEG and return the generated NPZ paths.
+    Build one full-array product for each input image.
+
+    Parameters
+    ----------
+    image_paths : :class:`list` [:class:`~pathlib.Path`]
+        Raw image paths to process. The returned product list preserves this
+        order.
+
+    Returns
+    -------
+    :class:`list` [:class:`~pathlib.Path`]
+        Paths to the generated ``*_full_array.npz`` products.
+
+    Notes
+    -----
+    Product paths are resolved using
+    :meth:`~grid_calibration.gui.workflow.product_io.ProductIO.expected_path`.
+    After all products are written, the resulting list is registered in the
+    active :class:`~grid_calibration.gui.session.CalibrationSession` with
+    :meth:`~grid_calibration.gui.workflow.product_io.ProductIO.register`.
     """
     full_paths: List[Path] = []
 

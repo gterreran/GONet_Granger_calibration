@@ -1,14 +1,56 @@
 # grid_calibration/gui/app.py
-# grid_calibration_extraction/gui/app.py
+"""
+Dash and pywebview launch helpers for the grid-calibration GUI.
 
-from .server import app
-import threading, webview, logging
-from GONet_Wizard.ui.api import WebviewAPI # type: ignore
-from .logging_utils import configure_gui_logging, silence_server_loggers 
-from .session import CalibrationSession
+This module is the runtime entry point for the interactive extraction GUI.  It
+connects three pieces that are intentionally kept separate elsewhere in the
+package:
+
+* the global Dash application object from :mod:`~grid_calibration.gui.server`,
+* the runtime :class:`~grid_calibration.gui.session.CalibrationSession`, and
+* the pywebview desktop window used to display the Dash application.
+
+The module does not define layout components or callbacks directly.  Instead,
+:func:`run_app` builds the layout and imports the callback package after logging
+has been configured, while :func:`launch_extraction_gui` prepares the session and
+starts the desktop window.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
 from pathlib import Path
 
-def run_app(debug=False):
+import webview
+from GONet_Wizard.ui.api import WebviewAPI  # type: ignore
+
+from .logging_utils import configure_gui_logging, silence_server_loggers
+from .server import app
+from .session import CalibrationSession
+
+
+def run_app(debug: bool = False) -> None:
+    """
+    Configure and run the Dash server for the calibration GUI.
+
+    Logging is configured before the layout and callbacks are imported so that
+    import-time and callback-time messages are captured by the GUI log window.
+    Callback modules are imported for their registration side effects after the
+    layout has been attached to the global Dash app.
+
+    Parameters
+    ----------
+    debug : :class:`bool`, optional
+        If ``True``, run Dash in debug mode and capture debug-level log records.
+        If ``False``, reduce Flask/Werkzeug/Dash startup chatter and capture
+        info-level application messages.
+
+    Returns
+    -------
+    :class:`None`
+        The function blocks while the Dash development server is running.
+    """
     # Configure logging interception BEFORE importing code that logs.
     level = logging.DEBUG if debug else logging.INFO
     configure_gui_logging(level=level, clear_existing=True)
@@ -27,7 +69,38 @@ def run_app(debug=False):
     app.run_server(port=8050, debug=debug, use_reloader=False)
 
 
-def launch_extraction_gui(data_files, output_dir=None, debug=False):
+def launch_extraction_gui(
+    data_files: list[Path] | list[str],
+    output_dir: str | Path | None = None,
+    debug: bool = False,
+) -> None:
+    """
+    Launch the desktop extraction GUI for a set of raw calibration images.
+
+    The function creates the output directory, initializes a
+    :class:`~grid_calibration.gui.session.CalibrationSession`, stores it in the
+    Flask configuration attached to :data:`~grid_calibration.gui.server.app`,
+    starts the Dash server in a daemon thread, and opens a pywebview window
+    pointed at the local Dash URL.
+
+    Parameters
+    ----------
+    data_files : list[path-like]
+        Raw image files for the calibration session.  These are passed to
+        :meth:`~grid_calibration.gui.session.CalibrationSession.from_inputs`,
+        which also performs dependency-aware product discovery.
+    output_dir : path-like or :class:`None`, optional
+        Directory where products are read and written.  When omitted or empty,
+        ``"grid_calibration_output"`` is used.
+    debug : :class:`bool`, optional
+        If ``True``, run Dash with debug logging and debug server behavior.
+
+    Returns
+    -------
+    :class:`None`
+        The function blocks once :func:`webview.start` enters the desktop event
+        loop.
+    """
     if output_dir is None or output_dir == "":
         output_dir = "grid_calibration_output"
 

@@ -1,4 +1,30 @@
 # grid_calibration/gui/callbacks/pipeline.py
+"""
+Dash callbacks that orchestrate pipeline step execution.
+
+This module owns the control flow that turns a button click in the left-hand
+control panel into a batch or interactive pipeline action. It deliberately
+separates the workflow into three stages:
+
+1. :func:`request_step_start`
+   Converts a button click into a serializable request stored in
+   :data:`grid_calibration.gui.ids.STORE_STEP_REQUEST`.
+
+2. :func:`start_step`
+   Resolves the requested :class:`~grid_calibration.gui.workflow.specs.PipelineStepSpec`
+   from :data:`~grid_calibration.gui.workflow.registry.STEP_BY_ID` and either
+   runs the step's batch pipeline function or initializes its interactive UI.
+
+3. :func:`finalize_step`
+   Rebuilds the visible step controls after a step completes and updates the
+   selected step so the viewer follows the newly produced product.
+
+The callbacks communicate through Dash stores rather than directly invoking one
+another. This makes batch and interactive steps use the same completion path:
+interactive callbacks only need to update the
+:class:`~grid_calibration.gui.session.CalibrationSession` and emit a
+``STORE_STEP_RESULT`` event.
+"""
 
 from __future__ import annotations
 
@@ -13,13 +39,24 @@ from ..logging_utils import log_step
 
 def _empty_outputs():
     """
-    Return a full no_update tuple matching the outputs of finalize_step().
+    Return no-op values for the outputs of :func:`finalize_step`.
+
+    This helper centralizes the exact output shape required by the finalization
+    callback. It is used whenever the callback receives an empty, malformed, or
+    non-completion event.
+
+    Returns
+    -------
+    :class:`tuple`
+        A tuple matching the six outputs of :func:`finalize_step`. Scalar
+        outputs are :data:`dash.no_update`; pattern-matched outputs are lists of
+        :data:`dash.no_update` with the appropriate lengths.
     """
     n_buttons = len(RUNNABLE_STEPS)
     n_steps = len(ORDERED_STEPS)
     return (
         no_update,                  # status text
-        no_update,                  # active step
+        no_update,                  # selected step
         [no_update] * n_buttons,    # button disabled
         [no_update] * n_steps,      # options
         [no_update] * n_steps,      # options disabled
@@ -39,10 +76,26 @@ def _empty_outputs():
 )
 def request_step_start(*_):
     """
-    Convert a button click into a step-start request.
+    Convert a pipeline button click into a step-start request.
 
-    This decouples the UI (button clicks) from the actual step execution.
+    The callback inspects :data:`dash.ctx.triggered_id` to determine which
+    pattern-matched button fired. Valid runnable step keys are serialized into
+    :data:`grid_calibration.gui.ids.STORE_STEP_REQUEST`; invalid or unrelated
+    triggers are ignored.
 
+    Parameters
+    ----------
+    *_ : :class:`object`
+        Pattern-matched button click counts supplied by Dash. The values are
+        ignored because the triggering component is read from
+        :data:`dash.ctx`.
+
+    Returns
+    -------
+    :class:`tuple`
+        ``(status_text, request)``. ``request`` is a dictionary containing the
+        requested step key and a request token, or :data:`dash.no_update` when
+        no runnable step was triggered.
     """
     trig = ctx.triggered_id
     if not trig or trig.get("step") not in RUNNABLE_STEPS:
@@ -73,19 +126,34 @@ def request_step_start(*_):
 )
 def start_step(request):
     """
-    Start a batch or interactive step.
+    Execute or initialize the requested pipeline step.
 
-    Batch steps:
-        - run immediately
-        - write payload into the session
-        - emit STORE_STEP_RESULT so finalize_step can rebuild the UI
+    Batch steps are run immediately by resolving
+    :attr:`~grid_calibration.gui.workflow.specs.PipelineStepSpec.pipeline_func`
+    and passing the session's raw files. Their returned product path or list of
+    paths is stored in the active
+    :class:`~grid_calibration.gui.session.CalibrationSession`.
 
-    Interactive steps:
-        - mark as active
-        - optionally initialize interactive state
-        - do not complete yet
+    Interactive steps are not marked complete here. Instead, their
+    :attr:`~grid_calibration.gui.workflow.specs.PipelineStepSpec.initialize_interactive_state`
+    callable is resolved and its returned Dash component is placed in the
+    plotting area. A later interactive callback is responsible for saving the
+    product, updating the session, and emitting a completion event.
+
+    Parameters
+    ----------
+    request : :class:`dict` or :class:`None`
+        Step-start request emitted by :func:`request_step_start`. Expected to
+        contain a ``"step"`` key and, optionally, a ``"request_token"``.
+
+    Returns
+    -------
+    :class:`tuple`
+        ``(status_text, active_step, result_event, plotting_children)``. For
+        batch steps, ``result_event`` is a completion dictionary. For
+        interactive steps, ``plotting_children`` contains the initialized
+        interactive layout and ``result_event`` is :data:`dash.no_update`.
     """
-
     if not request:
         return no_update, no_update, no_update, no_update
 
@@ -138,26 +206,29 @@ def start_step(request):
 )
 def finalize_step(result, options):
     """
-    Finalize a completed step and rebuild the whole step UI from data_files.
+    Rebuild step controls after a pipeline step completes.
 
-    This is the single shared completion path for both batch and interactive
-    steps. Any callback that finishes an interactive workflow should:
-
-        1. write the payload into the session (session.set(step, payload))
-        2. emit ids.STORE_STEP_RESULT with {"step": step, "status": "completed"}
+    This callback is the shared completion path for batch and interactive steps.
+    It reads the completed step's product registration from the active
+    :class:`~grid_calibration.gui.session.CalibrationSession`, updates the
+    corresponding dropdown options, enables the next runnable button, updates
+    row clickability, and selects the completed step for viewing.
 
     Parameters
     ----------
-    result : dict
-        Result event emitted after a step completes.
+    result : :class:`dict` or :class:`None`
+        Completion event. Valid events contain ``{"step": <step_key>,
+        "status": "completed"}``.
+    options : :class:`list`
+        Current option lists for all step dropdown or label controls.
 
     Returns
     -------
-    tuple
-        Dash outputs updating status, active step, buttons, options, and
-        control-row state.
+    :class:`tuple`
+        ``(status_text, selected_step, button_disabled, options,
+        option_disabled, row_disable_n_clicks)``. If the event is not a valid
+        completion event, returns the no-op tuple from :func:`_empty_outputs`.
     """
-
     if not result:
         return _empty_outputs()
 

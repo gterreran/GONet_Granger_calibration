@@ -1,3 +1,12 @@
+"""
+Callback registration package for the grid-calibration Dash GUI.
+
+Importing modules from this package registers Dash callbacks on
+:data:`grid_calibration.gui.server.app`. The package is intentionally organized
+by callback responsibility: pipeline orchestration, viewer updates, and
+application-level system behavior.
+"""
+
 # grid_calibration/gui/callbacks/__init__.py
 from __future__ import annotations
 

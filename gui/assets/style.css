@@ -641,9 +641,22 @@ textarea:focus {
 .control-row {
     border-radius: 10px;
     border: 1px solid var(--border);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .control-row .Select-control {
     border-radius: 0 !important;
+}
+
+.control-row .Select {
+    position: relative;
+    z-index: 10;
+}
+
+.control-row .Select.is-open {
+    z-index: 1000;
+}
+
+.Select-menu-outer {
+    z-index: 1001 !important;
 }

@@ -1,3 +1,10 @@
+"""
+Input data containers for model fitting.
+
+This module converts semantic assignment records into numerical arrays used by
+the distortion-model optimizer.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

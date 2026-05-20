@@ -1,4 +1,12 @@
 # grid_calibration/gui/steps/bootstrapping_grid/params.py
+"""
+Default parameters for bootstrapping-grid processing.
+
+These parameters control spoke growth, circle assignment, outlier rejection, and
+parallel execution behavior. They are developer-facing defaults used by the
+interactive controls and saved alongside the generated product.
+"""
+
 
 from .keys import PARAMS_KEY
 

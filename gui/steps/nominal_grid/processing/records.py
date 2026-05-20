@@ -1,4 +1,6 @@
-"""Output-record construction for nominal-grid assignments."""
+"""
+Output-record construction for nominal-grid assignments.
+"""
 
 from __future__ import annotations
 

@@ -74,10 +74,10 @@ a coherent calibration application.
    * - Module
      - Purpose
    * - ``tests/test_product_io.py``
-     - Unit tests for ``ProductIO`` path generation, save/load behavior,
+     - Unit tests for :class:`~grid_calibration.gui.workflow.product_io.ProductIO` path generation, save/load behavior,
        schema validation, caching, registration, and encode/decode round trips.
    * - ``tests/test_session.py``
-     - Unit tests for ``CalibrationSession`` product state, first raw file
+     - Unit tests for :class:`~grid_calibration.gui.session.CalibrationSession` product state, first raw file
        handling, and product rediscovery.
    * - ``tests/test_registry.py``
      - Architecture tests for registered step ordering, product keys, runnable
@@ -133,7 +133,7 @@ point detections, where an implicit input file would be ambiguous and dangerous.
 CalibrationSession Tests
 ------------------------
 
-``tests/test_session.py`` verifies that ``CalibrationSession`` remains a runtime
+``tests/test_session.py`` verifies that :class:`~grid_calibration.gui.session.CalibrationSession` remains a runtime
 state container rather than a second source of product logic.
 
 These tests cover:
@@ -141,10 +141,10 @@ These tests cover:
 * returning the first raw file for non-empty sessions;
 * raising a clear error for empty sessions;
 * basic ``get`` and ``set`` product state behavior;
-* rediscovery of existing products through the registered ``ProductIO`` objects.
+* rediscovery of existing products through the registered :class:`~grid_calibration.gui.workflow.product_io.ProductIO` objects.
 
 The session tests deliberately avoid schema and file-naming logic. Those belong
-to ``ProductIO``.
+to :class:`~grid_calibration.gui.workflow.product_io.ProductIO`.
 
 Registry Tests
 ---------------
@@ -214,10 +214,10 @@ large binary fixtures. The corresponding tests live in
 
 This layer checks that:
 
-* fake products can be written using the same ``ProductIO`` objects as real
+* fake products can be written using the same :class:`~grid_calibration.gui.workflow.product_io.ProductIO` objects as real
   products;
 * a fresh session can rediscover those products from disk;
-* viewer functions can load expected products;
+* :func:`viewer_factory` viewer functions can load expected products;
 * missing products fail gracefully or produce controlled placeholder behavior;
 * nominal-grid-style object records survive encode/decode boundaries.
 
@@ -547,7 +547,7 @@ Adding Real-Data Assertions
 When adding new real-data assertions, prefer loose structural checks first:
 
 * Does the product exist?
-* Does it load through ``ProductIO``?
+* Does it load through :class:`~grid_calibration.gui.workflow.product_io.ProductIO`?
 * Are required keys present?
 * Are array shapes correct?
 * Are values finite?

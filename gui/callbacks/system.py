@@ -1,4 +1,26 @@
 # grid_calibration/gui/callbacks/system.py
+"""
+Dash callbacks and clientside callbacks for application-level behavior.
+
+This module handles behavior that is not specific to one pipeline product:
+
+- polling the GUI log buffer and rendering it in the log window;
+- keeping the log window pinned to the bottom unless the user scrolls away;
+- closing the PyWebView window through the exposed ``window.pywebview`` API;
+- selecting a step by clicking its control row; and
+- styling step rows so the selected step is visually highlighted.
+
+The distinction between the active step and the selected step is important:
+
+``STORE_ACTIVE_STEP``
+    Tracks the latest step being processed or initialized.
+
+``STORE_SELECTED_STEP``
+    Tracks the step currently being viewed in the plotting panel.
+
+The row highlight follows ``STORE_SELECTED_STEP`` when it is set, falling back to
+``STORE_ACTIVE_STEP`` during initial page load.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +39,20 @@ from .. import ids
 )
 def update_log_window(_):
     """
-    Periodically update the log window from the global log handler buffer.
+    Poll the in-memory GUI log buffer and update the visible log window.
+
+    Parameters
+    ----------
+    _ : :class:`int`
+        Interval tick count from :class:`dash.dcc.Interval`. The value is not
+        used; it only triggers the polling callback.
+
+    Returns
+    -------
+    :class:`str`
+        The accumulated log text from
+        :data:`grid_calibration.gui.logging_utils.global_log_handler`, or a
+        placeholder message when the buffer is empty.
     """
     text = global_log_handler.get_logs()
     return text or "Log output will appear here..."
@@ -85,20 +120,22 @@ clientside_callback(
 )
 def exit_app(_):
     """
-    Callback to request closing the PyWebView window when the "Exit" button is clicked.
+    Request that the embedded PyWebView window close.
 
-    This callback sends a JavaScript command to the embedded PyWebView browser,
-    which calls the exposed Python API method ``close_window()`` to close the window.
+    The callback uses :mod:`webview` to evaluate JavaScript in the active
+    PyWebView window. The JavaScript calls the exposed
+    ``window.pywebview.api.close_window()`` method. The Dash output is only a
+    dummy output used to satisfy Dash's callback contract.
 
     Parameters
     ----------
-    _ : :class:`int` or :class:`NoneType`
-        Click count of the "Exit" button (ignored).
+    _ : :class:`int` or :class:`None`
+        Click count of the exit button. The value is ignored.
 
     Returns
     -------
     :class:`bool`
-        Always returns ``True`` to disable the "Exit" button after it has been clicked.
+        Always returns ``True`` to disable the exit button after it is clicked.
     """
     import webview
     webview.windows[0].evaluate_js("window.pywebview.api.close_window()")

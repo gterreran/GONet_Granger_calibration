@@ -1,16 +1,10 @@
-"""Bootstrapping-grid processing package.
+"""
+Processing API for bootstrapping-grid assignment.
 
-This package preserves the public API that used to live in
-``bootstrapping_grid.processing`` while splitting the implementation into
-focused modules:
-
-- ``containers`` for mutable assignment tables and result dataclasses.
-- ``geometry`` for shared coordinate helpers.
-- ``spokes`` for spoke spline fitting and spoke bootstrapping.
-- ``circles`` for circle-label propagation and Fourier circle models.
-- ``tiers`` for parallel spoke-tier execution.
-- ``records`` for output conversion.
-- ``pipeline`` for top-level orchestration.
+The public entry point is
+:func:`~grid_calibration.gui.steps.bootstrapping_grid.processing.pipeline.bootstrapping_from_nominal`,
+which is re-exported here to preserve the step's public processing API while
+keeping the implementation split into focused modules.
 """
 
 from __future__ import annotations

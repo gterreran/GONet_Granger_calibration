@@ -1,4 +1,13 @@
 # grid_calibration/gui/steps/nominal_grid/callbacks.py
+"""
+Interactive Dash callbacks for the nominal-grid step.
+
+The callbacks in this module connect the nominal-grid control panel to the
+assignment data, selected point state, and final product registration. They are
+step-specific callbacks imported by
+:func:`~grid_calibration.gui.workflow.registry.import_step_callback_modules`.
+"""
+
 from __future__ import annotations
 
 from typing import Optional

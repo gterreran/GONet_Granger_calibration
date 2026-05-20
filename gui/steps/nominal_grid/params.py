@@ -1,4 +1,13 @@
 # grid_calibration/gui/steps/nominal_grid/params.py
+"""
+Default parameter values for nominal-grid assignment.
+
+The values in this module are developer-facing defaults used by the interactive
+nominal-grid UI and by the processing pipeline. They are stored alongside the
+nominal-grid product so downstream steps can reconstruct how the assignment was
+created.
+"""
+
 
 from .keys import PARAMS_KEY
 

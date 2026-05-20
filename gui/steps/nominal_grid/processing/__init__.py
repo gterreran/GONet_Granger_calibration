@@ -1,10 +1,11 @@
-"""Nominal-grid processing package.
+"""
+Processing API for nominal-grid assignment.
 
-This package replaces the former monolithic ``processing.py`` module while
-preserving its public API. Importing from
-``grid_calibration.gui.steps.nominal_grid.processing`` should continue to expose
-``detect_nominal`` and the helper functions that were previously defined in the
-single file.
+The public entry point is
+:func:`~grid_calibration.gui.steps.nominal_grid.processing.pipeline.detect_nominal`,
+which is re-exported here so callers can import from
+``grid_calibration.gui.steps.nominal_grid.processing`` without depending on the
+internal module split.
 """
 
 from __future__ import annotations

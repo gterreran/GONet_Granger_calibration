@@ -1,4 +1,9 @@
-"""Circle bootstrapping and Fourier circle-model helpers."""
+"""
+Circle-assignment helpers for bootstrapped grid records.
+
+This module estimates missing nominal radii along assigned spokes, rejects
+circle outliers, and assigns circle-only points using recovered circle models.
+"""
 
 from __future__ import annotations
 

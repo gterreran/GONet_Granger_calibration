@@ -1,4 +1,6 @@
-"""Small numerical utilities for nominal-grid processing."""
+"""
+Small numerical utilities for nominal-grid processing.
+"""
 
 from __future__ import annotations
 

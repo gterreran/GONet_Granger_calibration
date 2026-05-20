@@ -1,4 +1,13 @@
 # grid_calibration/gui/steps/modeling_results/callbacks.py
+"""
+Interactive Dash callbacks for the modeling-results step.
+
+The callbacks in this module connect the modeling controls to the fitting
+pipeline, create diagnostic report products, update the active
+:class:`~grid_calibration.gui.session.CalibrationSession`, and emit the shared
+step-completion event consumed by the generic pipeline callbacks.
+"""
+
 from __future__ import annotations
 
 from typing import Optional

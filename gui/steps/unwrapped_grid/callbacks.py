@@ -1,6 +1,9 @@
 # grid_calibration/gui/steps/unwrapped_grid/callbacks.py
 from __future__ import annotations
 
+"""Interactive Dash callbacks for the unwrapped-grid step."""
+
+
 from typing import Any, Optional, Tuple
 import logging
 import numpy as np

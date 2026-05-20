@@ -1,4 +1,9 @@
-"""Data containers for bootstrapping dense and nominal grid assignments."""
+"""
+Data containers used by bootstrapping-grid processing.
+
+The dataclasses in this module provide typed containers for dense detections,
+mutable nominal assignments, and per-spoke bootstrap results.
+"""
 
 from __future__ import annotations
 

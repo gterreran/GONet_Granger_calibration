@@ -1,3 +1,11 @@
+"""
+Top-level modeling-results processing pipeline.
+
+This module converts raw assignment records into :class:`GridData`, builds a
+:class:`ModelConfig`, runs the fit, and returns the result/model/data triple used
+by the GUI callback.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -12,6 +20,25 @@ logger = logging.getLogger(__name__)
 def model_nominal_grid(raw_assignment, params):
     """
     Fit the distortion model from raw nominal-assignment records.
+
+    Parameters
+    ----------
+    raw_assignment : :class:`list`
+        Bootstrapped nominal-assignment records.
+    params : :class:`dict`
+        Modeling parameter dictionary, typically derived from
+        :data:`~grid_calibration.gui.steps.modeling_results.params.DEFAULT_PARAMETERS`
+        and GUI control values.
+
+    Returns
+    -------
+    :class:`tuple`
+        ``(result, model, data)`` where ``result`` is a
+        :class:`~grid_calibration.gui.steps.modeling_results.processing.results.FitResult`,
+        ``model`` is a
+        :class:`~grid_calibration.gui.steps.modeling_results.processing.model.PolarDistortionModel`,
+        and ``data`` is a
+        :class:`~grid_calibration.gui.steps.modeling_results.processing.data.GridData`.
     """
     logger.info("Loading data...")
 

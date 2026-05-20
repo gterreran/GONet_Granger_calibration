@@ -1,3 +1,11 @@
+"""
+Polar radial/tangential distortion model definition.
+
+The model predicts image-space coordinates from nominal polar grid coordinates
+using a symmetric radial polynomial plus harmonic radial and tangential
+correction fields.
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -8,7 +16,22 @@ from .utils import cartesian_center_from_measured_polar, circ_median_deg
 
 
 class PolarDistortionModel:
-    """Symmetric plus radial/tangential harmonic distortion model."""
+    """
+    Symmetric plus radial/tangential harmonic distortion model.
+
+    Parameters
+    ----------
+    config : :class:`~grid_calibration.gui.steps.modeling_results.processing.config.ModelConfig`
+        Model-basis configuration.
+    r_nom_max_deg : :class:`float`
+        Maximum nominal grid radius in degrees, used to normalize the harmonic
+        correction basis.
+
+    Returns
+    -------
+    :class:`PolarDistortionModel`
+        Model instance with parameter names and basis dimensions initialized.
+    """
 
     def __init__(self, config: ModelConfig, r_nom_max_deg: float) -> None:
         self.config = config

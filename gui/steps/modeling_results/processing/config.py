@@ -1,3 +1,7 @@
+"""
+Configuration dataclass for the distortion-model basis.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

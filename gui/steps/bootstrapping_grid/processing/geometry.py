@@ -1,4 +1,10 @@
-"""Basic geometry helpers for bootstrapping grid assignments."""
+"""
+Geometry helpers for bootstrapping-grid processing.
+
+These utilities convert between image coordinates and center-relative polar
+coordinates, estimate spoke support regions, and provide small vector helpers
+used by spoke and circle bootstrapping.
+"""
 
 from __future__ import annotations
 

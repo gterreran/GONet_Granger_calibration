@@ -1,4 +1,10 @@
-"""Rigid nominal-circle shift diagnostics."""
+"""
+Rigid radial-shift diagnostics for nominal circle labels.
+
+The helpers in this module test whether all assigned nominal circle radii should
+be shifted by a small fixed multiple of the grid spacing before final records are
+emitted.
+"""
 
 from __future__ import annotations
 

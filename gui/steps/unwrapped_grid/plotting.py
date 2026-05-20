@@ -1,6 +1,9 @@
 # grid_calibration/gui/steps/unwrapped_grid/plotting.py
 from __future__ import annotations
 
+"""Viewer and initialization utilities for the unwrapped-grid step."""
+
+
 from dash import dcc, html
 import logging
 from ..grid_points.plotting import plot_grid_array
@@ -79,11 +82,14 @@ def initialize_unwrapped_grid() -> html.Div:
     -----
     - The graph figure is expected to be populated by your existing viewer callback,
       or by a dedicated calibration callback, using the available pipeline products:
+
         * full-array image (background)
         * averaged-grid points (scatter)
+
     - "pending" vs "confirmed" are intentionally separate states:
         * pending updates on every click
         * confirmed updates only when the user clicks "Confirm center"
+        
     """
 
     logger.info("Initializing unwrapped grid viewer...")

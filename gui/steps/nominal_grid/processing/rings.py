@@ -1,4 +1,6 @@
-"""Ring-level estimation and nominal-circle assignment."""
+"""
+Ring-level estimation and nominal-circle assignment helpers.
+"""
 
 from __future__ import annotations
 

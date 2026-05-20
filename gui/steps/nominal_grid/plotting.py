@@ -1,4 +1,13 @@
 # grid_calibration/gui/steps/nominal_grid/plotting.py
+"""
+Plotting and interactive-layout helpers for the nominal-grid step.
+
+This module contains the Dash components and Plotly figure builders used to
+inspect nominal assignments and edit selected records. It is intentionally
+separate from :mod:`grid_calibration.gui.steps.nominal_grid.processing`, which
+contains the numerical assignment logic.
+"""
+
 from __future__ import annotations
 
 from typing import Optional

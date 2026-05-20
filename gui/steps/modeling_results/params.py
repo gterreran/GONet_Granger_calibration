@@ -1,4 +1,12 @@
 # grid_calibration/gui/steps/modeling_results/params.py
+"""
+Default parameters and product-backed parameter loading for model fitting.
+
+The defaults in this module control the polynomial radial model, harmonic
+correction basis, optimizer evaluation budget, regularization, and optional
+outlier rejection pass.
+"""
+
 
 from .keys import PARAMS_KEY
 

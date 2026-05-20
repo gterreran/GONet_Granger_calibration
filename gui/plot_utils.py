@@ -1,6 +1,18 @@
 # grid_calibration/gui/plot_utils.py
+"""
+Shared plotting helpers and theme defaults for Dash/Plotly viewers.
+
+Step plotting modules use this module for common display conventions: a dark
+Plotly layout, a grayscale image colorscale, robust image display limits, and a
+standard wrapper that embeds Plotly figure dictionaries in the GUI's graph
+container.
+"""
+
+from __future__ import annotations
+
 import numpy as np
 from dash import dcc, html
+
 from . import ids
 
 colorscale = [
@@ -17,6 +29,7 @@ colorscale = [
     [0.9090909090909091, 'rgb(224, 224, 223)'],
     [1.0, 'rgb(254, 254, 253)'],
 ]
+"""list[list[float | str]]: Grayscale Plotly colorscale used by image viewers."""
 
 plot_layout = {
     # dark backgrounds
@@ -43,8 +56,24 @@ plot_layout = {
         "font": {"color": "#e8ecf3"},
     },
 }
+"""dict: Base Plotly layout dictionary matching the GUI dark theme."""
 
-def reset_layout(fig):
+
+def reset_layout(fig: dict) -> dict:
+    """
+    Remove fixed ranges and aspect constraints from a Plotly figure dictionary.
+
+    Parameters
+    ----------
+    fig : dict
+        Plotly figure dictionary containing a ``"layout"`` entry.
+
+    Returns
+    -------
+    dict
+        The same figure dictionary, modified in place and returned for
+        convenience.
+    """
     for ax in ("xaxis", "yaxis"):
         fig["layout"].setdefault(ax, {})
 
@@ -58,11 +87,27 @@ def reset_layout(fig):
         fig["layout"][ax]["autorange"] = True
 
     fig["layout"].pop("aspectmode", None)
-    
+
     return fig
 
 
-def _weighted_centroid(img: np.ndarray, lo=70.0, hi=99.7) -> tuple[float, float]:
+def _weighted_centroid(img: np.ndarray, lo: float = 70.0, hi: float = 99.7) -> tuple[float, float]:
+    """
+    Estimate an image centroid using clipped intensity weights.
+
+    Parameters
+    ----------
+    img : :class:`numpy.ndarray`
+        Two-dimensional image array.
+    lo, hi : :class:`float`, optional
+        Percentiles used to clip image intensities before computing weights.
+
+    Returns
+    -------
+    tuple[float, float]
+        Estimated ``(row, column)`` centroid.  If all weights are zero, the
+        geometric center is returned.
+    """
     vmin, vmax = np.percentile(img, [lo, hi])
     w = np.clip(img, vmin, vmax) - vmin
     w = np.where(w > 0, w, 0.0)
@@ -78,8 +123,22 @@ def _weighted_centroid(img: np.ndarray, lo=70.0, hi=99.7) -> tuple[float, float]
     return cy, cx
 
 
-def _robust_limits(img: np.ndarray, lo=1.0, hi=99.0) -> tuple[float, float]:
-    """Percentile-based display limits to avoid blank/washed plots."""
+def _robust_limits(img: np.ndarray, lo: float = 1.0, hi: float = 99.0) -> tuple[float, float]:
+    """
+    Compute percentile-based image display limits.
+
+    Parameters
+    ----------
+    img : :class:`numpy.ndarray`
+        Image array.
+    lo, hi : :class:`float`, optional
+        Lower and upper percentiles.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(vmin, vmax)`` display limits that avoid degenerate ranges.
+    """
     finite = img[np.isfinite(img)]
     if finite.size == 0:
         return 0.0, 1.0
@@ -92,7 +151,32 @@ def _robust_limits(img: np.ndarray, lo=1.0, hi=99.0) -> tuple[float, float]:
     return float(vmin), float(vmax)
 
 
-def _apply_initial_zoom(fig, center_y: float, center_x: float, shape, half_size: int = 250) -> None:
+def _apply_initial_zoom(
+    fig: dict,
+    center_y: float,
+    center_x: float,
+    shape: tuple[int, int],
+    half_size: int = 250,
+) -> None:
+    """
+    Apply an initial square zoom window around a selected image center.
+
+    Parameters
+    ----------
+    fig : dict
+        Plotly figure dictionary modified in place.
+    center_y, center_x : :class:`float`
+        Center of the zoom window in image row/column coordinates.
+    shape : tuple[int, int]
+        Image shape as ``(ny, nx)``.
+    half_size : :class:`int`, optional
+        Half-width of the zoom window in pixels.
+
+    Returns
+    -------
+    :class:`None`
+        The figure dictionary is modified in place.
+    """
     ny, nx = shape
     cx = int(round(center_x))
     cy = int(round(center_y))
@@ -106,13 +190,26 @@ def _apply_initial_zoom(fig, center_y: float, center_x: float, shape, half_size:
     # but doing all avoids Plotly edge-cases with autorange/matches).
     for key in fig["layout"]:
         if key.startswith("xaxis"):
-            fig["layout"][key].update({"range":[x0, x1], "autorange":False})
+            fig["layout"][key].update({"range": [x0, x1], "autorange": False})
         elif key.startswith("yaxis"):
-            fig["layout"][key].update({"range":[y1, y0], "autorange":False})
-    
+            fig["layout"][key].update({"range": [y1, y0], "autorange": False})
 
-def make_div_from_fig_dict(img_fig) -> dict:
 
+def make_div_from_fig_dict(img_fig: dict) -> html.Div:
+    """
+    Wrap a Plotly figure dictionary in the standard GUI graph container.
+
+    Parameters
+    ----------
+    img_fig : dict
+        Plotly figure dictionary to display in a :class:`dash.dcc.Graph`.
+
+    Returns
+    -------
+    :class:`dash.html.Div`
+        Container containing the graph component with GUI-standard sizing and
+        interaction config.
+    """
     return html.Div(
         [
             html.Div(

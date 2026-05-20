@@ -1,19 +1,10 @@
-"""Processing helpers for the modeling-results calibration step.
+"""
+Processing API for the modeling-results calibration step.
 
-This package preserves the public API previously provided by
-``modeling_results.processing`` while separating the implementation into
-focused modules:
-
-``data``
-    Input record parsing and :class:`GridData`.
-``model``
-    The polar radial/tangential distortion model.
-``fitting``
-    Least-squares optimization and outlier refitting.
-``reporting``
-    Matplotlib/PDF diagnostic report generation.
-``pipeline``
-    Public orchestration entry point.
+The public entry point is
+:func:`~grid_calibration.gui.steps.modeling_results.processing.pipeline.model_nominal_grid`,
+which is re-exported here together with model, fitting, reporting, and result
+container classes.
 """
 
 from .config import ModelConfig

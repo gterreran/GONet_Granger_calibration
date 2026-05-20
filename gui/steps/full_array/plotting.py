@@ -1,4 +1,14 @@
 # grid_calibration/gui/steps/full_array/plotting.py
+"""
+Viewer functions for full-array products.
+
+The plotting layer is intentionally read-only. It obtains registered product
+paths through the step's :class:`~grid_calibration.gui.workflow.product_io.ProductIO`,
+loads the selected NPZ product, and returns Dash components for the shared
+viewer callback.
+
+No products are created or registered by this module.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +29,9 @@ CHANNEL_COLORS = {
     "green2": "limegreen",
     "blue": "blue",
 }
+"""
+Display colors used for channel histogram overlays.
+"""
 
 def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str) -> go.Figure:
     """
@@ -26,12 +39,20 @@ def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str
 
     Parameters
     ----------
-    data : dict
-        Loaded npz data.
-    prefix : {"raw", "matched"}
-        Which diagnostics to plot.
-    title : str
+    data : :class:`dict`
+        Loaded full-array product data. Histogram arrays are expected to follow
+        the key pattern ``"<prefix>_hist_bins_<channel>"`` and
+        ``"<prefix>_hist_density_<channel>"``.
+    prefix : :class:`str`
+        Histogram family to plot. Expected values are ``"raw"`` or
+        ``"matched"``.
+    title : :class:`str`
         Figure title.
+
+    Returns
+    -------
+    :class:`plotly.graph_objects.Figure`
+        Plotly figure containing one line trace per available channel.
     """
     fig = go.Figure()
 
@@ -51,8 +72,8 @@ def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str
                 y=y,
                 mode="lines",
                 line=dict(color=color, width=2),
-                name=ch,          # name kept (useful for hover)
-                showlegend=False, # <-- legend removed
+                name=ch,
+                showlegend=False,
                 hovertemplate=(
                     f"{ch}<br>"
                     "value=%{x}<br>"
@@ -64,7 +85,7 @@ def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str
     fig.update_layout(
         title=title,
         margin=dict(l=40, r=10, t=40, b=30),
-        showlegend=False,  # <-- hard-disable legends
+        showlegend=False,
         **plot_layout,
     )
 
@@ -76,21 +97,24 @@ def _hist_overlay_figure(data: Dict[str, np.ndarray], *, prefix: str, title: str
 
 def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
     """
-    Render the full-array image + stored histogram diagnostics from a *_full_array.npz.
+    Render one full-array product and its histogram diagnostics.
 
     Parameters
     ----------
-    idx : int
-        Index of the full-array product in the data files list.
-    zoom_half_size : int, optional
-        Half-size of the initial zoom window (in pixels). 250 -> 500x500.
+    idx : :class:`int`
+        Index of the selected full-array product in the per-input product list
+        registered for the step.
+    zoom_half_size : :class:`int`, optional
+        Half-size of the initial image zoom window in pixels. For example,
+        ``250`` gives a ``500 x 500`` initial view.
 
     Returns
     -------
-    dash component
-        html.Div containing the interactive plots.
+    :class:`dash.html.Div`
+        Dash container holding the image viewer and histogram figures. If the
+        selected product is unavailable or malformed, returns a small error
+        placeholder instead.
     """
-
     data_files = full_array_product_io.get()
     if not data_files:
         return html.Div("No data files loaded.", style={"color": "crimson"})
@@ -119,7 +143,7 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
                 zmin=vmin,
                 zmax=vmax,
                 colorscale="Gray",
-                showscale=False,  # <-- remove color bar
+                showscale=False,
                 hovertemplate="x=%{x}<br>y=%{y}<br>val=%{z}<extra></extra>",
             )
         ]
@@ -140,7 +164,7 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
     img_fig.update_layout(
         margin=dict(l=10, r=10, t=40, b=10),
         height=520,
-        uirevision=f"full-array-{npz_path}",  # keep zoom while logs update
+        uirevision=f"full-array-{npz_path}",
         dragmode="pan",
         **plot_layout,
     )
@@ -150,10 +174,8 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
 
     return html.Div(
         [
-            # OUTER ROW
             html.Div(
                 [
-                    # LEFT: full-array image
                     html.Div(
                         dcc.Graph(
                             id="full-array-image-graph",
@@ -169,13 +191,12 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
                             },
                         ),
                         style={
-                            "flex": "3",              # <-- main visual weight
-                            "minWidth": "0",          # important for flex + Plotly
+                            "flex": "3",
+                            "minWidth": "0",
                             "height": "100%",
                         },
                     ),
 
-                    # RIGHT: histograms column
                     html.Div(
                         [
                             dcc.Graph(
@@ -192,7 +213,7 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
                             ),
                         ],
                         style={
-                            "flex": "1",              # <-- narrower column
+                            "flex": "1",
                             "minWidth": "0",
                             "display": "flex",
                             "flexDirection": "column",
@@ -203,7 +224,7 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
                 style={
                     "display": "flex",
                     "flexDirection": "row",
-                    "height": "70vh",               # <-- match your other plot areas
+                    "height": "70vh",
                     "width": "100%",
                     "gap": "8px",
                 },
@@ -211,4 +232,3 @@ def plot_full_array_product(idx: int, *, zoom_half_size: int = 250):
         ],
         style={"width": "100%"},
     )
-

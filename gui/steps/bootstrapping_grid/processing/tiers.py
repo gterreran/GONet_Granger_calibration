@@ -1,4 +1,10 @@
-"""Parallel execution helpers for bootstrapping spoke tiers."""
+"""
+Spoke-tier execution helpers.
+
+The physical grid has hierarchical spoke density. This module defines the tier
+structure and runs spoke-pair bootstrapping tier by tier, optionally using worker
+processes.
+"""
 
 from __future__ import annotations
 

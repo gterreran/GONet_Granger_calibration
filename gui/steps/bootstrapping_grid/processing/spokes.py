@@ -1,4 +1,9 @@
-"""Spoke-tier geometry, spline fitting, and spoke bootstrapping helpers."""
+"""
+Spoke fitting and spoke-assignment helpers.
+
+This module fits center-anchored parametric spoke curves and assigns dense
+points to nominal spoke angles by growing from existing nominal seeds.
+"""
 
 from __future__ import annotations
 

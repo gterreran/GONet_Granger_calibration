@@ -1,4 +1,12 @@
 # grid_calibration/gui/steps/bootstrapping_grid/key.py
+"""
+Product keys and schema constants for the bootstrapping-grid step.
+
+The bootstrapped product stores semantic assignment records. It therefore uses
+``allow_pickle=True`` and explicit encode/decode hooks in
+:mod:`grid_calibration.gui.steps.bootstrapping_grid.spec`.
+"""
+
 
 STEP_KEY = "bootstrapping-grid"
 

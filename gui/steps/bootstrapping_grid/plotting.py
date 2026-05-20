@@ -1,4 +1,12 @@
 # grid_calibration/gui/steps/bootstrapping_grid/plotting.py
+"""
+Plotting and interactive-layout helpers for the bootstrapping-grid step.
+
+This module renders bootstrapped assignments and exposes the initialization UI
+used by the interactive workflow. Numerical bootstrapping logic lives in the
+:mod:`grid_calibration.gui.steps.bootstrapping_grid.processing` package.
+"""
+
 from __future__ import annotations
 
 import logging

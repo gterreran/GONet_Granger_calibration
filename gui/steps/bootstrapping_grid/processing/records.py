@@ -1,4 +1,6 @@
-"""Output-record builders for bootstrapped nominal assignments."""
+"""
+Output-record construction for bootstrapped assignments.
+"""
 
 from __future__ import annotations
 

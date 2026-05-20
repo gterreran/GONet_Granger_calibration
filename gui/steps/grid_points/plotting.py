@@ -1,4 +1,16 @@
 # grid_calibration/gui/steps/grid_points/plotting.py
+"""
+Viewer functions for grid-point products.
+
+This module overlays detected grid points on top of the corresponding
+full-array image. The plotting layer is intentionally read-only: it retrieves
+products through the step
+:class:`~grid_calibration.gui.workflow.product_io.ProductIO` descriptors but
+does not create or register products itself.
+"""
+
+from __future__ import annotations
+
 import numpy as np
 from dash import dcc, html
 from ...plot_utils import _weighted_centroid, _robust_limits, _apply_initial_zoom, colorscale, plot_layout
@@ -17,7 +29,31 @@ def plot_grid_array(
     dragmode: str = "pan",
     cut: bool = False,
 ) -> html.Div:
-    
+    """
+    Render detected grid points over the corresponding full-array image.
+
+    Parameters
+    ----------
+    idx : :class:`int`
+        Index of the selected per-input product.
+    zoom_half_size : :class:`int`, optional
+        Half-size of the initial zoom window in pixels.
+    average : :class:`bool`, optional
+        If ``True``, overlay the singleton averaged-grid product instead of the
+        selected per-input grid-points product.
+    dragmode : :class:`str`, optional
+        Plotly drag mode for the image viewer.
+    cut : :class:`bool`, optional
+        If ``True``, crop the displayed image around the weighted centroid to
+        reduce rendering cost and focus on the central region.
+
+    Returns
+    -------
+    :class:`dash.html.Div`
+        Dash container holding the Plotly image viewer and scatter overlay.
+        Returns a small error placeholder if required products are unavailable.
+    """
+
     full_array_paths = full_array_io.get()
     if not full_array_paths:
         return html.Div("No full-array files loaded.", style={"color": "crimson"})
@@ -63,7 +99,6 @@ def plot_grid_array(
         hovertemplate="x=%{x}<br>y=%{y}<br>val=%{z}<extra></extra>",
     )
     if cut:
-        # This preserves original coordinate reporting for clicks/hover
         heatmap_trace["x"] = heatmap_x
         heatmap_trace["y"] = heatmap_y
 
@@ -123,14 +158,11 @@ def plot_grid_array(
     img_fig["layout"]["xaxis"] = dict(showgrid=False, zeroline=False)
 
     if cut:
-        # When cut, the figure "full extent" is the cropped region (but in original coords)
         img_fig["layout"]["xaxis"]["range"] = [x0, x1 - 1]
         img_fig["layout"]["yaxis"]["range"] = [y1 - 1, y0]
     else:
-        # Full extent is the full image
         img_fig["layout"]["xaxis"]["range"] = [0, nx_full - 1]
         img_fig["layout"]["yaxis"]["range"] = [ny_full - 1, 0]
-        # Then apply initial zoom to centroid region
         _apply_initial_zoom(img_fig, cy, cx, img_full.shape, half_size=zoom_half_size)
 
     img_fig["layout"].update(

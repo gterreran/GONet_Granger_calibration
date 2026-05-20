@@ -1,4 +1,6 @@
-"""Spoke-angle estimation and nominal-spoke assignment."""
+"""
+Spoke-angle estimation and nominal-spoke assignment helpers.
+"""
 
 from __future__ import annotations
 
