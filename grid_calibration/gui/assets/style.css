@@ -1,0 +1,662 @@
+.dropdown-label .Select-arrow-zone {
+  display: none !important;         /* hide the down arrow */
+}
+
+.dropdown-label .Select-input {
+  display: none !important;         /* hide typing area */
+}
+
+.dropdown-label.is-disabled .Select-placeholder,
+.dropdown-label.is-disabled .Select-value-label,
+.dropdown-real.is-disabled .Select-placeholder,
+.dropdown-real.is-disabled .Select-value-label {
+  color: #aaaaaa !important;
+}
+
+.dropdown-label .Select-control {
+  pointer-events: none;
+}
+
+/* =========================================================
+   Global theme
+   ========================================================= */
+
+:root {
+    --bg: #0f1117;
+    --bg-panel: #171b24;
+    --bg-panel-2: #1d2330;
+    --bg-elevated: #222938;
+
+    --border: #2c3445;
+    --border-soft: #232938;
+
+    --text: #e8ecf3;
+    --text-muted: #a7b0c2;
+    --text-dim: #7f889b;
+
+    --accent: #5aa9ff;
+    --accent-hover: #7bbaff;
+    --accent-soft: rgba(90, 169, 255, 0.14);
+
+    --danger: #ff6b6b;
+    --danger-hover: #ff8585;
+
+    --success: #53d17d;
+    --warning: #ffcc66;
+
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --gap: 14px;
+    --transition: 140ms ease;
+}
+
+/* Let the app fill the page cleanly */
+html,
+body,
+#react-entry-point {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Dash root container fallback */
+body {
+    overflow: hidden;
+}
+
+/* =========================================================
+   Main page structure
+   ========================================================= */
+
+.app-shell {
+    height: 100vh;
+    width: 100%;
+    background:
+        radial-gradient(circle at top left, rgba(90, 169, 255, 0.06), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(83, 209, 125, 0.04), transparent 25%),
+        var(--bg);
+    color: var(--text);
+    padding: 14px;
+    box-sizing: border-box;
+}
+
+.app-main {
+    display: flex;
+    flex-direction: row;
+    gap: var(--gap);
+    height: 100%;
+    min-height: 0;
+}
+
+/* =========================================================
+   Left panel
+   ========================================================= */
+
+.control-panel {
+    width: 28%;
+    min-width: 280px;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    box-sizing: border-box;
+
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow-y: auto;
+}
+
+.control-panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.2px;
+}
+
+.control-panel label {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.control-panel hr {
+    width: 100%;
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
+}
+
+/* =========================================================
+   Right panel
+   ========================================================= */
+
+.content-panel {
+    width: 72%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.plot-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    background: #10141c;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    position: relative;
+}
+
+
+.plot-loading {
+    height: 100%;
+    min-height: 0;
+}
+
+.plot-loading > div {
+    height: 100%;
+    min-height: 0;
+}
+
+.plot-area {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.log-window {
+    flex: 0 0 16vh;
+    min-height: 110px;
+    max-height: 24vh;
+    padding: 10px 12px;
+    box-sizing: border-box;
+
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #0b0e14;
+    color: #d7dee9;
+    font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-y: auto;
+}
+
+/* Nice log scrollbar */
+.log-window::-webkit-scrollbar,
+.control-panel::-webkit-scrollbar {
+    width: 10px;
+}
+
+.log-window::-webkit-scrollbar-track,
+.control-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.log-window::-webkit-scrollbar-thumb,
+.control-panel::-webkit-scrollbar-thumb {
+    background: #2b3446;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.log-window::-webkit-scrollbar-thumb:hover,
+.control-panel::-webkit-scrollbar-thumb:hover {
+    background: #3a465e;
+    background-clip: content-box;
+}
+
+/* =========================================================
+   Buttons
+   ========================================================= */
+
+button {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.93rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+    box-shadow: none;
+}
+
+button:hover {
+    background: #293143;
+    border-color: #41506d;
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Specific exit button if you give it a className */
+.button-exit {
+    width: 100%;
+    background: rgba(255, 107, 107, 0.1);
+    border-color: rgba(255, 107, 107, 0.28);
+    color: #ffd3d3;
+}
+
+.button-exit:hover {
+    background: rgba(255, 107, 107, 0.16);
+    border-color: rgba(255, 107, 107, 0.45);
+    color: #fff0f0;
+}
+
+/* =========================================================
+   Dash Core Components
+   ========================================================= */
+
+/* Dropdown wrapper */
+.Select-control,
+.Select-menu-outer,
+.Select-menu,
+.Select {
+    background-color: #121722 !important;
+    color: var(--text) !important;
+}
+
+.Select-control {
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    min-height: 40px !important;
+    box-shadow: none !important;
+}
+
+.Select-control:hover {
+    border-color: #40506c !important;
+}
+
+.Select-placeholder,
+.Select-value-label,
+.Select-input input {
+    color: var(--text) !important;
+}
+
+.Select--single > .Select-control .Select-value,
+.Select-placeholder {
+    line-height: 38px !important;
+}
+
+.Select-menu-outer {
+    border: 1px solid var(--border) !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    box-shadow: var(--shadow) !important;
+}
+
+.Select-option {
+    background-color: #121722 !important;
+    color: var(--text) !important;
+}
+
+.Select-option.is-focused {
+    background-color: #1c2433 !important;
+}
+
+.Select-option.is-selected {
+    background-color: var(--accent-soft) !important;
+    color: #dcecff !important;
+}
+
+.Select-arrow-zone {
+    color: var(--text-muted) !important;
+}
+
+.Select-clear-zone {
+    color: var(--text-dim) !important;
+}
+
+/* Input fields */
+input[type="text"],
+input[type="number"],
+textarea {
+    width: 100%;
+    background: #121722;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(90, 169, 255, 0.16);
+}
+
+/* =========================================================
+   Status text / helper text
+   ========================================================= */
+
+.status-text {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* =========================================================
+   Loading spinner polish
+   ========================================================= */
+
+._dash-loading {
+    margin: auto;
+}
+
+.dash-spinner {
+    color: var(--accent) !important;
+}
+
+/* =========================================================
+   Plotly tuning
+   ========================================================= */
+
+/* Makes Plotly modebar fit the dark UI better */
+.js-plotly-plot .plotly .modebar {
+    background: rgba(18, 23, 34, 0.72) !important;
+    border-radius: 10px;
+    padding: 4px;
+}
+
+.js-plotly-plot .plotly .modebar-btn svg {
+    fill: #c7d2e5 !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn:hover svg {
+    fill: white !important;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 980px) {
+    .app-main {
+        flex-direction: column;
+    }
+
+    .control-panel,
+    .content-panel {
+        width: 100%;
+        max-width: none;
+    }
+
+    .content-panel {
+        min-height: 55vh;
+    }
+
+    .log-window {
+        flex-basis: 180px;
+        max-height: 220px;
+    }
+}
+
+/* =========================================================
+   Two-panel calibration layout
+   ========================================================= */
+
+.two-panel-row {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.nominal-plot-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.shift-controls-row,
+.selection-row {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    column-gap: 12px;
+    align-items: stretch;
+}
+
+.shift-control-block,
+.selection-row .input-col {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+}
+
+.selection-row .param-input {
+    width: 100%;
+}
+
+.vertical-divider {
+    width: 1px;
+    min-width: 1px;
+    background: var(--border);
+    align-self: stretch;
+}
+
+.side-controls-panel {
+    flex: 0 0 320px;
+    width: 320px;
+    min-width: 280px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    padding: 14px 16px;
+    box-sizing: border-box;
+    border-left: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* =========================================================
+   Section styling
+   ========================================================= */
+
+.section-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.control-label {
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.sub-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* =========================================================
+   Inputs / buttons layout
+   ========================================================= */
+
+.input-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.input-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 0 0 120px;   /* fixed width */
+    max-width: 120px;
+}
+
+.shift-controls-row {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: stretch;
+}
+
+.shift-control-block {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.shift-button-row {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
+.vertical-divider {
+    width: 1px;
+    min-width: 1px;
+    background: var(--border);
+    align-self: stretch;
+}
+
+.tiny-button {
+    flex: 1 1 0;
+    padding: 8px 10px;
+}
+
+.param-input {
+    width: 95px;
+    min-width: 80px;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.action-button {
+    flex: 0 0 auto;
+}
+
+.action-button-primary {
+    background: var(--accent-soft);
+    border-color: rgba(90, 169, 255, 0.35);
+    color: #eaf4ff;
+}
+
+.action-button-primary:hover {
+    background: rgba(90, 169, 255, 0.22);
+    border-color: rgba(90, 169, 255, 0.55);
+}
+
+/* =========================================================
+   Status box
+   ========================================================= */
+
+.status-box {
+    font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.93rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #0f141d;
+    color: var(--text);
+}
+
+/* =========================================================
+   Selection section
+   ========================================================= */
+
+.selection-panel {
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0;
+}
+
+.control-row {
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    overflow: visible;
+}
+
+.control-row .Select-control {
+    border-radius: 0 !important;
+}
+
+.control-row .Select {
+    position: relative;
+    z-index: 10;
+}
+
+.control-row .Select.is-open {
+    z-index: 1000;
+}
+
+.Select-menu-outer {
+    z-index: 1001 !important;
+}

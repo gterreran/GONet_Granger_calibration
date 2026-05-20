@@ -168,3 +168,5 @@ data/**/*.json
 #Personal scripts and logging
 tag_and_push.sh
 commit_changelog.txt
+
+__MACOSX/
