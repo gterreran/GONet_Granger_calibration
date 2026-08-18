@@ -180,17 +180,26 @@ Duplicate Ring or Spoke Labels
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If two detected rings or spokes receive the same nominal value, the assignment is
-ambiguous.
+usually ambiguous.
 
-When this happens:
+There is one spoke-specific exception at the angular branch cut. A slightly
+curved spoke can cross from measured theta values just below 360 degrees to
+values just above 0 degrees. Because the initial grouping works in the displayed
+unwrapped coordinates, that one physical spoke may initially be detected as two
+fragments. Before duplicate validation, Grid Calibration checks duplicate-labelled
+edge fragments and merges them only when they look like complementary radial
+pieces of one continuous spoke across the 0/360 boundary. Substantially
+overlapping or complete repeated spokes are deliberately left separate.
+
+For all remaining duplicate labels:
 
 - the conflicting structures are marked in red,
 - the confirm button is disabled,
 - the user must correct the assignment before continuing.
 
-The callbacks explicitly disable confirmation when multiple conflicts are
+The callbacks explicitly disable confirmation when unresolved conflicts are
 present, and the final product is written only when the user confirms a valid
-assignment. 
+assignment.
 
 Interactive Review
 ------------------
