@@ -355,9 +355,16 @@ Final choice:
 Outputs
 -------
 
-The script produces:
+The final modeling stage produces:
 
-- ``*_distortion_fit_polar.npz``
+- ``*_modeling_results.npz`` for workflow recovery and rich Python diagnostics,
+- ``*_calibration.npz`` as the stable plain-data calibration artifact,
+- and optionally ``*_modeling_report.pdf`` for visual diagnostics.
+
+The portable calibration artifact can be consumed through
+:class:`grid_calibration.GridCalibration`,
+:func:`grid_calibration.angle_to_pixel`, and
+:func:`grid_calibration.pixel_to_angle`.
   - fitted parameters
   - predicted coordinates
   - residuals

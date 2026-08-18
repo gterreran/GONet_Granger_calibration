@@ -50,11 +50,25 @@ Outputs
 
 This step generates one singleton modeling-results product.
 
-Typical output product:
+Typical workflow output product:
 
 .. code-block:: text
 
     *_modeling_results.npz
+
+The modeling step also exports a portable calibration sidecar:
+
+.. code-block:: text
+
+    *_calibration.npz
+
+The portable artifact contains only numerical, boolean, and string arrays and
+is readable with ``numpy.load(..., allow_pickle=False)``. It records the artifact
+format/version, image-coordinate convention, sensor dimensions, model-basis
+configuration, normalization radius, fitted parameter vector, fit-quality
+summary, and calibrated angular range. Unlike ``*_modeling_results.npz``, it
+does not serialize a Python ``FitResult`` object and is intended as the stable
+input for downstream applications.
 
 Optionally, a PDF diagnostic report may also be generated:
 
@@ -298,11 +312,29 @@ A good final solution generally has:
 
 Residuals should remain visually small compared to the grid spacing.
 
-Final Calibration Product
--------------------------
+Final Calibration Products
+--------------------------
 
 Once the fit completes successfully, the modeling-results product is written to
-disk and registered automatically in the calibration session. 
+disk and registered automatically in the calibration session. The portable
+``*_calibration.npz`` sidecar is written alongside it for external consumers.
+
+The package-level API can load this artifact and evaluate either direction of
+the calibration:
+
+.. code-block:: python
+
+    from grid_calibration import load_calibration
+
+    calibration = load_calibration("camera_calibration.npz")
+
+    x, y = calibration.angle_to_pixel(r_deg=45.0, theta_deg=120.0)
+    r_deg, theta_deg = calibration.pixel_to_angle(x, y)
+
+The inverse is solved numerically against the complete fitted forward model,
+including radial and tangential harmonic corrections. By default it refuses to
+silently extrapolate beyond the calibrated outer angular radius; pass
+``extrapolate=True`` only when that behavior is intentional.
 
 Additional Documentation
 ------------------------

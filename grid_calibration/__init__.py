@@ -28,6 +28,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
+from .calibration import (
+    CalibrationFitQuality,
+    GridCalibration,
+    angle_to_pixel,
+    load_calibration,
+    pixel_to_angle,
+)
+
 
 def launch_grid_calibration(
     files: Sequence[str | Path],
@@ -67,5 +75,10 @@ def launch_grid_calibration(
 
 
 __all__ = [
+    "CalibrationFitQuality",
+    "GridCalibration",
+    "angle_to_pixel",
     "launch_grid_calibration",
+    "load_calibration",
+    "pixel_to_angle",
 ]
