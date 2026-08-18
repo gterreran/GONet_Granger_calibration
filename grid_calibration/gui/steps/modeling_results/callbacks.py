@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import numpy as np
 from dash import Input, Output, State, ctx, no_update
 import logging
 
@@ -25,8 +26,30 @@ from ..bootstrapping_grid import product_io as bootstrapping_product_io
 from ..bootstrapping_grid.keys import DATA_KEY as BOOTSTRAPPING_DATA_KEY
 from .keys import STEP_KEY
 from .spec import DATA_KEY, PARAMS_KEY
+from ..full_array import product_io as full_array_product_io
+from ..full_array.keys import IMAGE_KEY as FULL_ARRAY_IMAGE_KEY
+from grid_calibration.calibration import GridCalibration
 
 logger = logging.getLogger(__name__)
+
+
+def _sensor_shape_from_full_array_product() -> tuple[int, int]:
+    """Return ``(height, width)`` in the coordinate system used by the fit."""
+    paths = full_array_product_io.get()
+    if not paths:
+        raise ValueError(
+            "Cannot export the portable calibration artifact because no "
+            "full-array products are registered."
+        )
+
+    path = paths[0]
+    image = np.asarray(full_array_product_io.load(path)[FULL_ARRAY_IMAGE_KEY])
+    if image.ndim != 2:
+        raise ValueError(
+            f"Full-array product {path} has non-2D image shape {image.shape}."
+        )
+    return int(image.shape[0]), int(image.shape[1])
+
 
 @app.callback(
     Output(ids.MODELING_RADIAL_DEGREE_ID, "value"),
@@ -122,6 +145,18 @@ def bootstrap_grid(
     modeling_product_io.save(
         **output_packet,
     )
+
+    calibration_path = out_npz.with_name(
+        out_npz.stem.replace("_modeling_results", "_calibration")
+    ).with_suffix(".npz")
+    calibration = GridCalibration.from_fit(
+        fit_result=fit_result,
+        model=model,
+        data=data,
+        sensor_shape=_sensor_shape_from_full_array_product(),
+    )
+    calibration.save(calibration_path)
+    logger.info("Wrote portable calibration artifact: %s", calibration_path)
 
     modeling_product_io.register()
 

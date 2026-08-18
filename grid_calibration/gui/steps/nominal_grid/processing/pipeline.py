@@ -20,7 +20,11 @@ from .grouping import detect_ring_and_spoke_groups
 from .radial_shift import choose_rigid_circle_shift
 from .records import build_nominal_assignment_records
 from .rings import assign_nominal_circles, estimate_ring_levels_with_wave_correction
-from .spokes import assign_nominal_spokes, spoke_group_theta_estimates
+from .spokes import (
+    assign_nominal_spokes,
+    merge_wrap_split_spoke_groups,
+    spoke_group_theta_estimates,
+)
 from .utils import robust_median_spacing
 
 logger = logging.getLogger(__name__)
@@ -101,6 +105,21 @@ def detect_nominal(data, params: dict) -> list[dict]:
 
     theta_g = spoke_group_theta_estimates(points, spoke_groups)
     _k_spoke, theta_nom, theta0 = assign_nominal_spokes(theta_g, theta0=None)
+
+    spoke_groups, n_wrap_merges = merge_wrap_split_spoke_groups(
+        points,
+        spoke_groups,
+        theta_nom,
+        max_dist=params["spoke_max_dist"],
+        gate_tol_theta=params["spoke_gate_tol_theta"],
+    )
+    if n_wrap_merges:
+        logger.info(
+            "Merged %d spoke fragment pair(s) split across the 0/360 theta wrap.",
+            n_wrap_merges,
+        )
+        theta_g = spoke_group_theta_estimates(points, spoke_groups)
+        _k_spoke, theta_nom, _ = assign_nominal_spokes(theta_g, theta0=theta0)
 
     logger.info("Chosen spoke offset theta0: %.3f deg", theta0)
 

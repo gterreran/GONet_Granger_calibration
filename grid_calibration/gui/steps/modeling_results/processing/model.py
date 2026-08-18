@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from grid_calibration.distortion import evaluate_polar_distortion
+
 from .config import ModelConfig
 from .data import GridData
 from .utils import cartesian_center_from_measured_polar, circ_median_deg
@@ -90,51 +92,31 @@ class PolarDistortionModel:
                     cols.append(sm * np.sin(n * phi))
         return np.column_stack(cols) if cols else np.empty((s.size, 0), dtype=float)
 
+    def predict_nominal(
+        self,
+        params: np.ndarray,
+        r_nom_deg: np.ndarray,
+        theta_nom_deg: np.ndarray,
+    ) -> dict[str, np.ndarray]:
+        """Predict image-space coordinates from nominal angular coordinates."""
+        return evaluate_polar_distortion(
+            params=params,
+            radial_degree=self.config.radial_degree,
+            harmonic_radial_degree=self.config.harmonic_radial_degree,
+            harmonic_order=self.config.harmonic_order,
+            fit_constant_terms=self.config.fit_constant_terms,
+            r_nom_max_deg=self.r_nom_max_deg,
+            r_nom_deg=r_nom_deg,
+            theta_nom_deg=theta_nom_deg,
+        )
+
     def predict(self, params: np.ndarray, data: GridData) -> dict[str, np.ndarray]:
         """Predict measured coordinates from nominal grid coordinates."""
-        cx, cy, theta0_deg = params[:3]
-        radial_coeffs = params[3 : self.n_sym]
-        field_coeffs = params[self.n_sym :]
-
-        u = np.deg2rad(data.r_nom_deg)
-        s = data.r_nom_deg / self.r_nom_max_deg
-        phi = np.deg2rad(data.theta_nom_deg + theta0_deg)
-
-        rho_sym = np.zeros_like(u)
-        for power, coeff in enumerate(radial_coeffs, start=1):
-            rho_sym += coeff * u**power
-
-        basis = self._basis(s=s, phi=phi)
-        dr = np.zeros_like(rho_sym)
-        dtan = np.zeros_like(rho_sym)
-        if basis.size > 0:
-            n_field = basis.shape[1]
-            dr = basis @ field_coeffs[:n_field]
-            dtan = basis @ field_coeffs[n_field:]
-
-        rho_full = rho_sym + dr
-        cos_phi = np.cos(phi)
-        sin_phi = np.sin(phi)
-
-        x_sym = cx + rho_sym * cos_phi
-        y_sym = cy + rho_sym * sin_phi
-
-        x_pred = cx + rho_full * cos_phi - dtan * sin_phi
-        y_pred = cy + rho_full * sin_phi + dtan * cos_phi
-
-        return {
-            "u_rad": u,
-            "s": s,
-            "phi_rad": phi,
-            "rho_sym": rho_sym,
-            "rho_full": rho_full,
-            "dr": dr,
-            "dtan": dtan,
-            "x_sym": x_sym,
-            "y_sym": y_sym,
-            "x_pred": x_pred,
-            "y_pred": y_pred,
-        }
+        return self.predict_nominal(
+            params=params,
+            r_nom_deg=data.r_nom_deg,
+            theta_nom_deg=data.theta_nom_deg,
+        )
 
     def residuals(
         self,

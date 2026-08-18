@@ -13,7 +13,9 @@ The package provides:
 - staged processing products for restartable workflows,
 - interactive center selection and nominal-grid validation,
 - bootstrapped dense calibration correspondences,
-- and final distortion-model fitting diagnostics.
+- final distortion-model fitting diagnostics,
+- a public pixel ↔ angular-coordinate transform API,
+- and a portable no-pickle ``*_calibration.npz`` artifact for downstream tools.
 
 ## Documentation
 
@@ -54,6 +56,28 @@ The legacy module entry point is also supported:
 ```bash
 python -m grid_calibration path/to/images/*.jpg --outdir grid_calibration_output --debug
 ```
+
+## Using a Finished Calibration
+
+The final modeling step keeps the existing ``*_modeling_results.npz`` workflow
+product and also writes a smaller ``*_calibration.npz`` interchange artifact.
+The latter contains only plain NumPy-compatible data and can be loaded with
+``allow_pickle=False``.
+
+```python
+from grid_calibration import load_calibration
+
+calibration = load_calibration("grid_calibration_output/camera_calibration.npz")
+
+# Nominal angular polar coordinates -> image pixels
+x, y = calibration.angle_to_pixel(45.0, 120.0)
+
+# Image pixels -> nominal angular polar coordinates
+r_deg, theta_deg = calibration.pixel_to_angle(x, y)
+```
+
+The module-level ``angle_to_pixel()`` and ``pixel_to_angle()`` functions are
+also available for callers that prefer a functional API.
 
 ## Development
 

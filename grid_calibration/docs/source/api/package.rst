@@ -9,6 +9,14 @@ Package Entry Points
    :undoc-members:
    :show-inheritance:
 
+Portable Calibration API
+------------------------
+
+.. automodule:: grid_calibration.calibration
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Command-Line Entry Point
 ------------------------
 
