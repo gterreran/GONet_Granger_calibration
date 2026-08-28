@@ -1,34 +1,82 @@
 # grid_calibration/gui/steps/modeling_results/params.py
-"""
-Default parameters and product-backed parameter loading for model fitting.
+"""Default parameters and product-backed parameter loading for model fitting."""
 
-The defaults in this module control the polynomial radial model, harmonic
-correction basis, optimizer evaluation budget, regularization, and optional
-outlier rejection pass.
-"""
-
+from __future__ import annotations
 
 from .keys import PARAMS_KEY
 
-DEFAULT_PARAMETERS = {
-    "regularization": 1e-3, # Ridge penalty applied to harmonic coefficients.
-    "fit-constant-terms": False, # Whether to include n=0 terms in the harmonic correction fields.
-    "max-nfev": 3000, # Maximum number of function evaluations per optimization stage.
-    "outlier-rejection-floor-px": 2.5, # Absolute minimum residual threshold in pixels for outlier rejection.
-    "min-inlier-fraction": 0.90, # Minimum fraction of points that must remain to perform the outlier-refit stage.
 
-    #interactive parameters
-    "radial-degree": 4, # Degree of the symmetric radial polynomial.
-    "harmonic-radial-degree": 3, # Degree of the radius polynomial used in the harmonic correction.
-    "harmonic-order": 4, # Maximum Fourier harmonic order used in the correction fields.
-    "outlier-rejection-sigma": 4.5, # If >0, reject points with residual norm above median + sigma*MAD after the first full fit.
+DEFAULT_PARAMETERS = {
+    "regularization": 1e-3,
+    "fit-constant-terms": False,
+    "axisymmetric-twist-kind": "tanh",
+    "axisymmetric-twist-scale-deg": 20.0,
+    "max-nfev": 3000,
+    "outlier-rejection-floor-px": 2.5,
+    "min-inlier-fraction": 0.90,
+    "inverse-validation-max-r-deg": 70.0,
+
+    # Interactive model-complexity parameters. These are the production
+    # defaults selected from the model-development and geometric-CV campaign.
+    "radial-degree": 5,
+    "radial-harmonic-radial-degree": 4,
+    "radial-harmonic-order": 7,
+    "tangential-harmonic-radial-degree": 4,
+    "tangential-harmonic-order": 8,
+    "outlier-rejection-sigma": 4.5,
 }
+
+
+def normalize_parameters(parameters: dict | None) -> dict:
+    """Return a complete current parameter dictionary.
+
+    Older modeling products used one shared harmonic radial degree/order for
+    both correction fields and had no axisymmetric twist. When such a product
+    is loaded, preserve its original model semantics rather than silently
+    upgrading the already-produced fit configuration.
+    """
+    if parameters is None:
+        return DEFAULT_PARAMETERS.copy()
+
+    supplied = dict(parameters)
+    normalized = DEFAULT_PARAMETERS.copy()
+
+    legacy_harmonics = (
+        "harmonic-radial-degree" in supplied
+        or "harmonic-order" in supplied
+    ) and not any(
+        key in supplied
+        for key in (
+            "radial-harmonic-radial-degree",
+            "radial-harmonic-order",
+            "tangential-harmonic-radial-degree",
+            "tangential-harmonic-order",
+        )
+    )
+
+    normalized.update(supplied)
+
+    if legacy_harmonics:
+        legacy_m = int(supplied.get("harmonic-radial-degree", 3))
+        legacy_n = int(supplied.get("harmonic-order", 4))
+        normalized.update(
+            {
+                "radial-harmonic-radial-degree": legacy_m,
+                "radial-harmonic-order": legacy_n,
+                "tangential-harmonic-radial-degree": legacy_m,
+                "tangential-harmonic-order": legacy_n,
+                "axisymmetric-twist-kind": "none",
+            }
+        )
+
+    return normalized
+
 
 def load_parameters() -> dict:
     from ....errors import MissingProductError
     from .spec import product_io
 
     try:
-        return product_io.load()[PARAMS_KEY]
+        return normalize_parameters(product_io.load()[PARAMS_KEY])
     except MissingProductError:
         return DEFAULT_PARAMETERS.copy()

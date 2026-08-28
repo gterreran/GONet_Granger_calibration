@@ -207,11 +207,11 @@ def initialize_modeling_results():
                             ),
                             html.Div(
                                 [
-                                    html.Label("Harmonic radial degree", className="mini-label"),
+                                    html.Label("dr radial degree", className="mini-label"),
                                     dcc.Input(
                                         id=ids.MODELING_HARMONIC_RADIAL_DEGREE_ID,
                                         type="number",
-                                        value=params["harmonic-radial-degree"],
+                                        value=params["radial-harmonic-radial-degree"],
                                         step=1,
                                         className="param-input",
                                     ),
@@ -220,12 +220,67 @@ def initialize_modeling_results():
                             ),
                             html.Div(
                                 [
-                                    html.Label("Harmonic order", className="mini-label"),
+                                    html.Label("dr harmonic order", className="mini-label"),
                                     dcc.Input(
                                         id=ids.MODELING_HARMONIC_ORDER_ID,
                                         type="number",
-                                        value=params["harmonic-order"],
+                                        value=params["radial-harmonic-order"],
                                         step=1,
+                                        className="param-input",
+                                    ),
+                                ],
+                                className="input-col",
+                            ),
+                            html.Div(
+                                [
+                                    html.Label("dtan radial degree", className="mini-label"),
+                                    dcc.Input(
+                                        id=ids.MODELING_TANGENTIAL_HARMONIC_RADIAL_DEGREE_ID,
+                                        type="number",
+                                        value=params["tangential-harmonic-radial-degree"],
+                                        step=1,
+                                        className="param-input",
+                                    ),
+                                ],
+                                className="input-col",
+                            ),
+                            html.Div(
+                                [
+                                    html.Label("dtan harmonic order", className="mini-label"),
+                                    dcc.Input(
+                                        id=ids.MODELING_TANGENTIAL_HARMONIC_ORDER_ID,
+                                        type="number",
+                                        value=params["tangential-harmonic-order"],
+                                        step=1,
+                                        className="param-input",
+                                    ),
+                                ],
+                                className="input-col",
+                            ),
+                            html.Div(
+                                [
+                                    html.Label("Twist model", className="mini-label"),
+                                    dcc.Dropdown(
+                                        id=ids.MODELING_TWIST_KIND_ID,
+                                        options=[
+                                            {"label": "tanh", "value": "tanh"},
+                                            {"label": "none", "value": "none"},
+                                        ],
+                                        value=params["axisymmetric-twist-kind"],
+                                        clearable=False,
+                                        className="param-input",
+                                    ),
+                                ],
+                                className="input-col",
+                            ),
+                            html.Div(
+                                [
+                                    html.Label("Twist scale (deg)", className="mini-label"),
+                                    dcc.Input(
+                                        id=ids.MODELING_TWIST_SCALE_ID,
+                                        type="number",
+                                        value=params["axisymmetric-twist-scale-deg"],
+                                        step=0.5,
                                         className="param-input",
                                     ),
                                 ],

@@ -1,9 +1,8 @@
-"""
-Polar radial/tangential distortion model definition.
+"""Polar radial/tangential distortion model definition.
 
 The model predicts image-space coordinates from nominal polar grid coordinates
-using a symmetric radial polynomial plus harmonic radial and tangential
-correction fields.
+using a symmetric radial polynomial, independent radial/tangential harmonic
+correction fields, and an optional axisymmetric radius-dependent angular twist.
 """
 
 from __future__ import annotations
@@ -18,22 +17,7 @@ from .utils import cartesian_center_from_measured_polar, circ_median_deg
 
 
 class PolarDistortionModel:
-    """
-    Symmetric plus radial/tangential harmonic distortion model.
-
-    Parameters
-    ----------
-    config : :class:`~grid_calibration.gui.steps.modeling_results.processing.config.ModelConfig`
-        Model-basis configuration.
-    r_nom_max_deg : :class:`float`
-        Maximum nominal grid radius in degrees, used to normalize the harmonic
-        correction basis.
-
-    Returns
-    -------
-    :class:`PolarDistortionModel`
-        Model instance with parameter names and basis dimensions initialized.
-    """
+    """Symmetric radial + anisotropic harmonic distortion model."""
 
     def __init__(self, config: ModelConfig, r_nom_max_deg: float) -> None:
         self.config = config
@@ -42,20 +26,52 @@ class PolarDistortionModel:
         self.sym_names = ["cx", "cy", "theta0_deg"]
         self.sym_names += [f"k{p}" for p in range(1, config.radial_degree + 1)]
 
-        self.field_names: list[str] = []
-        start_n = 0 if config.fit_constant_terms else 1
-        for axis in ("dr", "dtan"):
-            for m in range(0, config.harmonic_radial_degree + 1):
-                for n in range(start_n, config.harmonic_order + 1):
-                    if n == 0:
-                        self.field_names.append(f"{axis}_m{m}_c0")
-                    else:
-                        self.field_names.append(f"{axis}_m{m}_c{n}")
-                        self.field_names.append(f"{axis}_m{m}_s{n}")
+        self.dr_field_names = self._field_names(
+            "dr",
+            radial_degree=config.radial_harmonic_radial_degree,
+            harmonic_order=config.radial_harmonic_order,
+        )
+        self.dtan_field_names = self._field_names(
+            "dtan",
+            radial_degree=config.tangential_harmonic_radial_degree,
+            harmonic_order=config.tangential_harmonic_order,
+        )
 
-        self.param_names = self.sym_names + self.field_names
+        twist_kind = str(config.axisymmetric_twist_kind).lower()
+        if twist_kind == "none":
+            self.twist_names: list[str] = []
+        elif twist_kind == "tanh":
+            self.twist_names = ["twist_tanh_amp_deg"]
+        else:
+            raise ValueError(
+                "axisymmetric_twist_kind must be either 'none' or 'tanh'."
+            )
+
+        self.field_names = self.dr_field_names + self.dtan_field_names
+        self.param_names = self.sym_names + self.field_names + self.twist_names
         self.n_sym = len(self.sym_names)
+        self.n_dr = len(self.dr_field_names)
+        self.n_dtan = len(self.dtan_field_names)
+        self.n_twist = len(self.twist_names)
         self.n_total = len(self.param_names)
+
+    def _field_names(
+        self,
+        axis: str,
+        *,
+        radial_degree: int,
+        harmonic_order: int,
+    ) -> list[str]:
+        names: list[str] = []
+        start_n = 0 if self.config.fit_constant_terms else 1
+        for m in range(0, int(radial_degree) + 1):
+            for n in range(start_n, int(harmonic_order) + 1):
+                if n == 0:
+                    names.append(f"{axis}_m{m}_c0")
+                else:
+                    names.append(f"{axis}_m{m}_c{n}")
+                    names.append(f"{axis}_m{m}_s{n}")
+        return names
 
     def initial_parameters(self, data: GridData) -> np.ndarray:
         """Build an initial parameter vector."""
@@ -78,20 +94,6 @@ class PolarDistortionModel:
         params[3 : 3 + len(coeffs)] = coeffs
         return params
 
-    def _basis(self, s: np.ndarray, phi: np.ndarray) -> np.ndarray:
-        """Build the Fourier-polynomial design matrix for one scalar field."""
-        cols: list[np.ndarray] = []
-        start_n = 0 if self.config.fit_constant_terms else 1
-        for m in range(0, self.config.harmonic_radial_degree + 1):
-            sm = s**m
-            for n in range(start_n, self.config.harmonic_order + 1):
-                if n == 0:
-                    cols.append(sm)
-                else:
-                    cols.append(sm * np.cos(n * phi))
-                    cols.append(sm * np.sin(n * phi))
-        return np.column_stack(cols) if cols else np.empty((s.size, 0), dtype=float)
-
     def predict_nominal(
         self,
         params: np.ndarray,
@@ -102,8 +104,16 @@ class PolarDistortionModel:
         return evaluate_polar_distortion(
             params=params,
             radial_degree=self.config.radial_degree,
-            harmonic_radial_degree=self.config.harmonic_radial_degree,
-            harmonic_order=self.config.harmonic_order,
+            radial_harmonic_radial_degree=(
+                self.config.radial_harmonic_radial_degree
+            ),
+            radial_harmonic_order=self.config.radial_harmonic_order,
+            tangential_harmonic_radial_degree=(
+                self.config.tangential_harmonic_radial_degree
+            ),
+            tangential_harmonic_order=self.config.tangential_harmonic_order,
+            axisymmetric_twist_kind=self.config.axisymmetric_twist_kind,
+            axisymmetric_twist_scale_deg=self.config.axisymmetric_twist_scale_deg,
             fit_constant_terms=self.config.fit_constant_terms,
             r_nom_max_deg=self.r_nom_max_deg,
             r_nom_deg=r_nom_deg,
@@ -134,9 +144,24 @@ class PolarDistortionModel:
         ry = data.y - pred["y_pred"]
         resid = np.concatenate([rx, ry])
 
-        if include_field and self.config.regularization > 0 and p.size > self.n_sym:
-            reg = np.sqrt(self.config.regularization) * p[self.n_sym :]
-            resid = np.concatenate([resid, reg])
+        if include_field and self.config.regularization > 0:
+            # Ridge-regularize the dense anisotropic fields. The one-parameter
+            # tanh twist is deliberately left unregularized; its constrained
+            # functional form is what keeps that mode identifiable/stable.
+            cursor = self.n_sym
+            dr_coeffs = p[cursor : cursor + self.n_dr]
+            cursor += self.n_dr
+            dtan_coeffs = p[cursor : cursor + self.n_dtan]
+            reg_parts: list[np.ndarray] = []
+            if dr_coeffs.size:
+                reg_parts.append(
+                    np.sqrt(self.config.regularization) * dr_coeffs
+                )
+            if dtan_coeffs.size:
+                reg_parts.append(
+                    np.sqrt(self.config.regularization) * dtan_coeffs
+                )
+            if reg_parts:
+                resid = np.concatenate([resid, *reg_parts])
 
         return resid
-

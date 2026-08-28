@@ -1,29 +1,33 @@
 """Public, GUI-independent grid-calibration evaluation API.
 
 The :class:`GridCalibration` container is reconstructed entirely from plain
-numerical/string data.  Its ``.npz`` representation therefore does not require
+numerical/string data. Its ``.npz`` representation therefore does not require
 pickle and is suitable as a stable interchange artifact for downstream tools.
+
+Format version 2 stores independent radial/tangential harmonic complexity and
+the axisymmetric tanh-twist model selected through geometric cross-validation.
+Version-1 artifacts are migrated transparently on load.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from scipy.optimize import least_squares
 
-from .distortion import evaluate_polar_distortion
+from .distortion import SUPPORTED_TWIST_KINDS, evaluate_polar_distortion
 
 CALIBRATION_FORMAT = "grid-calibration"
-CALIBRATION_FORMAT_VERSION = 1
+CALIBRATION_FORMAT_VERSION = 2
 IMAGE_COORDINATE_CONVENTION = (
     "x=column,y=row;origin=upper-left;+x=right;+y=down;"
     "pixel-centers-at-integer-coordinates"
 )
 
-_REQUIRED_KEYS = {
+_REQUIRED_KEYS_V1 = {
     "format",
     "version",
     "image_coordinate_convention",
@@ -47,25 +51,92 @@ _REQUIRED_KEYS = {
     "calibrated_angular_range_deg",
 }
 
+_REQUIRED_KEYS_V2 = {
+    "format",
+    "version",
+    "image_coordinate_convention",
+    "sensor_width_px",
+    "sensor_height_px",
+    "radial_degree",
+    "radial_harmonic_radial_degree",
+    "radial_harmonic_order",
+    "tangential_harmonic_radial_degree",
+    "tangential_harmonic_order",
+    "fit_constant_terms",
+    "axisymmetric_twist_kind",
+    "axisymmetric_twist_scale_deg",
+    "r_nom_max_deg",
+    "params_full",
+    "param_names",
+    "fit_rms_px",
+    "fit_median_px",
+    "fit_p95_px",
+    "fit_max_abs_px",
+    "fit_inlier_rms_px",
+    "outlier_threshold_px",
+    "n_inliers",
+    "n_outliers",
+    "calibrated_angular_range_deg",
+    "inverse_validation_max_r_deg",
+    "inverse_radial_robust_sigma_arcmin",
+    "inverse_radial_p95_abs_arcmin",
+    "inverse_cross_robust_sigma_arcmin",
+    "inverse_cross_p95_abs_arcmin",
+}
 
-def _parameter_names(
+
+def _field_parameter_names(
+    axis: str,
     radial_degree: int,
-    harmonic_radial_degree: int,
     harmonic_order: int,
     fit_constant_terms: bool,
+) -> list[str]:
+    names: list[str] = []
+    start_n = 0 if fit_constant_terms else 1
+    for m in range(int(radial_degree) + 1):
+        for n in range(start_n, int(harmonic_order) + 1):
+            if n == 0:
+                names.append(f"{axis}_m{m}_c0")
+            else:
+                names.append(f"{axis}_m{m}_c{n}")
+                names.append(f"{axis}_m{m}_s{n}")
+    return names
+
+
+def _parameter_names(
+    *,
+    radial_degree: int,
+    radial_harmonic_radial_degree: int,
+    radial_harmonic_order: int,
+    tangential_harmonic_radial_degree: int,
+    tangential_harmonic_order: int,
+    fit_constant_terms: bool,
+    axisymmetric_twist_kind: str,
 ) -> tuple[str, ...]:
     names = ["cx", "cy", "theta0_deg"]
-    names.extend(f"k{p}" for p in range(1, radial_degree + 1))
-
-    start_n = 0 if fit_constant_terms else 1
-    for axis in ("dr", "dtan"):
-        for m in range(harmonic_radial_degree + 1):
-            for n in range(start_n, harmonic_order + 1):
-                if n == 0:
-                    names.append(f"{axis}_m{m}_c0")
-                else:
-                    names.append(f"{axis}_m{m}_c{n}")
-                    names.append(f"{axis}_m{m}_s{n}")
+    names.extend(f"k{p}" for p in range(1, int(radial_degree) + 1))
+    names.extend(
+        _field_parameter_names(
+            "dr",
+            radial_harmonic_radial_degree,
+            radial_harmonic_order,
+            fit_constant_terms,
+        )
+    )
+    names.extend(
+        _field_parameter_names(
+            "dtan",
+            tangential_harmonic_radial_degree,
+            tangential_harmonic_order,
+            fit_constant_terms,
+        )
+    )
+    if axisymmetric_twist_kind == "tanh":
+        names.append("twist_tanh_amp_deg")
+    elif axisymmetric_twist_kind != "none":
+        raise ValueError(
+            f"Unsupported axisymmetric twist kind {axisymmetric_twist_kind!r}."
+        )
     return tuple(names)
 
 
@@ -81,6 +152,24 @@ def _scalar_or_array(value: np.ndarray) -> float | np.ndarray:
     return value
 
 
+def _robust_sigma(values: np.ndarray) -> float:
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return float("nan")
+    median = float(np.median(values))
+    mad = float(np.median(np.abs(values - median)))
+    sigma = 1.482602218505602 * mad
+    if not np.isfinite(sigma) or sigma <= 0.0:
+        sigma = float(np.std(values))
+    return sigma
+
+
+def _wrap_degrees(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    return (values + 180.0) % 360.0 - 180.0
+
+
 @dataclass(frozen=True)
 class CalibrationFitQuality:
     """Compact fit-quality summary stored in the portable artifact."""
@@ -94,22 +183,33 @@ class CalibrationFitQuality:
     n_inliers: int = 0
     n_outliers: int = 0
 
+    # Inverse angular validation on calibration points, evaluated over the
+    # declared validation radius. These are intentionally global summary values;
+    # the PDF report carries the richer per-ring/per-spoke structure.
+    inverse_validation_max_r_deg: float | None = None
+    inverse_radial_robust_sigma_arcmin: float | None = None
+    inverse_radial_p95_abs_arcmin: float | None = None
+    inverse_cross_robust_sigma_arcmin: float | None = None
+    inverse_cross_p95_abs_arcmin: float | None = None
+
 
 @dataclass(frozen=True)
 class GridCalibration:
-    """Portable fitted calibration and pixel/angle transform evaluator.
-
-    ``params_full`` follows the parameter ordering recorded in ``param_names``.
-    Angles are degrees.  Image coordinates follow
-    :data:`IMAGE_COORDINATE_CONVENTION`.
-    """
+    """Portable fitted calibration and pixel/angle transform evaluator."""
 
     sensor_width_px: int
     sensor_height_px: int
     radial_degree: int
-    harmonic_radial_degree: int
-    harmonic_order: int
+
+    radial_harmonic_radial_degree: int
+    radial_harmonic_order: int
+    tangential_harmonic_radial_degree: int
+    tangential_harmonic_order: int
+
     fit_constant_terms: bool
+    axisymmetric_twist_kind: str
+    axisymmetric_twist_scale_deg: float
+
     r_nom_max_deg: float
     params_full: np.ndarray
     fit_quality: CalibrationFitQuality
@@ -121,6 +221,11 @@ class GridCalibration:
     def __post_init__(self) -> None:
         params = np.asarray(self.params_full, dtype=float)
         object.__setattr__(self, "params_full", params)
+        object.__setattr__(
+            self,
+            "axisymmetric_twist_kind",
+            str(self.axisymmetric_twist_kind).lower(),
+        )
 
         if self.format != CALIBRATION_FORMAT:
             raise ValueError(
@@ -129,7 +234,7 @@ class GridCalibration:
             )
         if int(self.version) != CALIBRATION_FORMAT_VERSION:
             raise ValueError(
-                f"Unsupported calibration format version {self.version}; "
+                f"Unsupported in-memory calibration version {self.version}; "
                 f"expected {CALIBRATION_FORMAT_VERSION}."
             )
         if self.image_coordinate_convention != IMAGE_COORDINATE_CONVENTION:
@@ -141,13 +246,35 @@ class GridCalibration:
             raise ValueError("Sensor dimensions must be positive integers.")
         if self.radial_degree < 1:
             raise ValueError("radial_degree must be at least 1.")
-        if self.harmonic_radial_degree < 0 or self.harmonic_order < 0:
+        harmonic_values = (
+            self.radial_harmonic_radial_degree,
+            self.radial_harmonic_order,
+            self.tangential_harmonic_radial_degree,
+            self.tangential_harmonic_order,
+        )
+        if min(harmonic_values) < 0:
             raise ValueError("Harmonic degrees/orders must be non-negative.")
+        if self.axisymmetric_twist_kind not in SUPPORTED_TWIST_KINDS:
+            raise ValueError(
+                f"Unsupported axisymmetric twist kind "
+                f"{self.axisymmetric_twist_kind!r}."
+            )
+        if (
+            not np.isfinite(self.axisymmetric_twist_scale_deg)
+            or self.axisymmetric_twist_scale_deg <= 0
+        ):
+            raise ValueError(
+                "axisymmetric_twist_scale_deg must be positive and finite."
+            )
         if not np.isfinite(self.r_nom_max_deg) or self.r_nom_max_deg <= 0:
             raise ValueError("r_nom_max_deg must be a positive finite value.")
 
         r_min, r_max = map(float, self.calibrated_angular_range_deg)
-        if not (np.isfinite(r_min) and np.isfinite(r_max) and 0 <= r_min <= r_max):
+        if not (
+            np.isfinite(r_min)
+            and np.isfinite(r_max)
+            and 0 <= r_min <= r_max
+        ):
             raise ValueError(
                 "calibrated_angular_range_deg must contain finite increasing "
                 "non-negative radii."
@@ -167,16 +294,41 @@ class GridCalibration:
     def param_names(self) -> tuple[str, ...]:
         """Return the stable parameter ordering implied by the model config."""
         return _parameter_names(
-            self.radial_degree,
-            self.harmonic_radial_degree,
-            self.harmonic_order,
-            self.fit_constant_terms,
+            radial_degree=self.radial_degree,
+            radial_harmonic_radial_degree=self.radial_harmonic_radial_degree,
+            radial_harmonic_order=self.radial_harmonic_order,
+            tangential_harmonic_radial_degree=(
+                self.tangential_harmonic_radial_degree
+            ),
+            tangential_harmonic_order=self.tangential_harmonic_order,
+            fit_constant_terms=self.fit_constant_terms,
+            axisymmetric_twist_kind=self.axisymmetric_twist_kind,
         )
 
     @property
     def center_px(self) -> tuple[float, float]:
         """Return the fitted image-space distortion center ``(cx, cy)``."""
         return float(self.params_full[0]), float(self.params_full[1])
+
+    @property
+    def twist_amplitude_deg(self) -> float:
+        """Return the fitted asymptotic tanh-twist amplitude in degrees."""
+        if self.axisymmetric_twist_kind == "none":
+            return 0.0
+        return float(self.params_full[-1])
+
+    def axisymmetric_twist_deg(
+        self, r_deg: Any
+    ) -> float | np.ndarray:
+        """Evaluate the fitted global angular twist at nominal radius ``r_deg``."""
+        r = np.asarray(r_deg, dtype=float)
+        if self.axisymmetric_twist_kind == "none":
+            result = np.zeros_like(r, dtype=float)
+        else:
+            result = self.twist_amplitude_deg * np.tanh(
+                r / float(self.axisymmetric_twist_scale_deg)
+            )
+        return _scalar_or_array(result)
 
     @classmethod
     def from_fit(
@@ -186,6 +338,7 @@ class GridCalibration:
         model: Any,
         data: Any,
         sensor_shape: tuple[int, int],
+        inverse_validation_max_r_deg: float = 70.0,
     ) -> "GridCalibration":
         """Build a portable calibration from the current modeling output."""
         height, width = map(int, sensor_shape)
@@ -200,13 +353,27 @@ class GridCalibration:
         summary = fit_result.summary_full
         inlier_summary = fit_result.summary_full_inliers
 
-        return cls(
+        calibration = cls(
             sensor_width_px=width,
             sensor_height_px=height,
             radial_degree=int(model.config.radial_degree),
-            harmonic_radial_degree=int(model.config.harmonic_radial_degree),
-            harmonic_order=int(model.config.harmonic_order),
+            radial_harmonic_radial_degree=int(
+                model.config.radial_harmonic_radial_degree
+            ),
+            radial_harmonic_order=int(model.config.radial_harmonic_order),
+            tangential_harmonic_radial_degree=int(
+                model.config.tangential_harmonic_radial_degree
+            ),
+            tangential_harmonic_order=int(
+                model.config.tangential_harmonic_order
+            ),
             fit_constant_terms=bool(model.config.fit_constant_terms),
+            axisymmetric_twist_kind=str(
+                model.config.axisymmetric_twist_kind
+            ),
+            axisymmetric_twist_scale_deg=float(
+                model.config.axisymmetric_twist_scale_deg
+            ),
             r_nom_max_deg=float(model.r_nom_max_deg),
             params_full=np.asarray(fit_result.params_full, dtype=float),
             fit_quality=CalibrationFitQuality(
@@ -215,7 +382,9 @@ class GridCalibration:
                 p95_px=float(summary.p95),
                 max_abs_px=float(summary.max_abs),
                 inlier_rms_px=(
-                    None if inlier_summary is None else float(inlier_summary.rms)
+                    None
+                    if inlier_summary is None
+                    else float(inlier_summary.rms)
                 ),
                 outlier_threshold_px=(
                     None
@@ -231,12 +400,32 @@ class GridCalibration:
             ),
         )
 
+        inverse_quality = calibration.inverse_quality_on_points(
+            x=np.asarray(data.x, dtype=float),
+            y=np.asarray(data.y, dtype=float),
+            nominal_r_deg=np.asarray(data.r_nom_deg, dtype=float),
+            nominal_theta_deg=np.asarray(data.theta_nom_deg, dtype=float),
+            max_nominal_r_deg=float(inverse_validation_max_r_deg),
+        )
+        return replace(
+            calibration,
+            fit_quality=replace(calibration.fit_quality, **inverse_quality),
+        )
+
     def _forward(self, r_deg: Any, theta_deg: Any) -> dict[str, np.ndarray]:
         return evaluate_polar_distortion(
             params=self.params_full,
             radial_degree=self.radial_degree,
-            harmonic_radial_degree=self.harmonic_radial_degree,
-            harmonic_order=self.harmonic_order,
+            radial_harmonic_radial_degree=(
+                self.radial_harmonic_radial_degree
+            ),
+            radial_harmonic_order=self.radial_harmonic_order,
+            tangential_harmonic_radial_degree=(
+                self.tangential_harmonic_radial_degree
+            ),
+            tangential_harmonic_order=self.tangential_harmonic_order,
+            axisymmetric_twist_kind=self.axisymmetric_twist_kind,
+            axisymmetric_twist_scale_deg=self.axisymmetric_twist_scale_deg,
             fit_constant_terms=self.fit_constant_terms,
             r_nom_max_deg=self.r_nom_max_deg,
             r_nom_deg=r_deg,
@@ -258,9 +447,6 @@ class GridCalibration:
         *,
         max_radius_deg: float,
     ) -> np.ndarray:
-        # The dominant symmetric radial model is an excellent initializer.  The
-        # dense lookup also remains robust to small higher-order departures from
-        # a perfectly linear/equidistant lens model.
         sample_r = np.linspace(0.0, max_radius_deg, 4097)
         u = np.deg2rad(sample_r)
         radial_coeffs = self.params_full[3 : 3 + self.radial_degree]
@@ -294,29 +480,7 @@ class GridCalibration:
         tolerance_px: float = 1e-7,
         strict: bool = True,
     ) -> tuple[float | np.ndarray, float | np.ndarray]:
-        """Invert image pixels to nominal angular polar coordinates.
-
-        The inverse is solved numerically against the complete fitted forward
-        model, including radial and tangential harmonic corrections.  By
-        default, solutions are restricted to radii no larger than the calibrated
-        outer radius.  Set ``extrapolate=True`` to permit radial extrapolation up
-        to 180 degrees.
-
-        Parameters
-        ----------
-        x, y
-            Scalar or broadcast-compatible arrays of image pixel coordinates.
-        extrapolate
-            Permit solutions beyond the calibrated outer angular radius.
-        max_iterations
-            Maximum vectorized Newton iterations before a SciPy fallback is used
-            for any remaining points.
-        tolerance_px
-            Pixel-space convergence tolerance.
-        strict
-            If ``True``, raise :class:`ValueError` when any point cannot be
-            inverted to better than ``max(1e-4, 10*tolerance_px)`` pixels.
-        """
+        """Invert image pixels to nominal angular polar coordinates."""
         x_arr, y_arr = np.broadcast_arrays(
             np.asarray(x, dtype=float),
             np.asarray(y, dtype=float),
@@ -339,12 +503,11 @@ class GridCalibration:
             if extrapolate
             else max(float(self.calibrated_angular_range_deg[1]), 1e-6)
         )
-        r = self._initial_radius_deg(pixel_radius, max_radius_deg=max_radius_deg)
+        r = self._initial_radius_deg(
+            pixel_radius, max_radius_deg=max_radius_deg
+        )
         theta = np.rad2deg(np.arctan2(dy, dx)) - theta0_deg
 
-        # Vectorized damped Newton solve.  Each point has an independent 2x2
-        # Jacobian, so this is much cheaper than invoking a generic optimizer for
-        # every pixel in the common case.
         for _ in range(max(0, int(max_iterations))):
             pred = self._forward(r, theta)
             rx = x_flat - np.asarray(pred["x_pred"])
@@ -362,10 +525,22 @@ class GridCalibration:
             pred_tp = self._forward(r, theta + theta_step)
             pred_tm = self._forward(r, theta - theta_step)
 
-            dx_dr = (np.asarray(pred_rp["x_pred"]) - np.asarray(pred_rm["x_pred"])) / (2.0 * r_step)
-            dy_dr = (np.asarray(pred_rp["y_pred"]) - np.asarray(pred_rm["y_pred"])) / (2.0 * r_step)
-            dx_dt = (np.asarray(pred_tp["x_pred"]) - np.asarray(pred_tm["x_pred"])) / (2.0 * theta_step)
-            dy_dt = (np.asarray(pred_tp["y_pred"]) - np.asarray(pred_tm["y_pred"])) / (2.0 * theta_step)
+            dx_dr = (
+                np.asarray(pred_rp["x_pred"])
+                - np.asarray(pred_rm["x_pred"])
+            ) / (2.0 * r_step)
+            dy_dr = (
+                np.asarray(pred_rp["y_pred"])
+                - np.asarray(pred_rm["y_pred"])
+            ) / (2.0 * r_step)
+            dx_dt = (
+                np.asarray(pred_tp["x_pred"])
+                - np.asarray(pred_tm["x_pred"])
+            ) / (2.0 * theta_step)
+            dy_dt = (
+                np.asarray(pred_tp["y_pred"])
+                - np.asarray(pred_tm["y_pred"])
+            ) / (2.0 * theta_step)
 
             det = dx_dr * dy_dt - dx_dt * dy_dr
             solvable = active & np.isfinite(det) & (np.abs(det) > 1e-12)
@@ -383,8 +558,6 @@ class GridCalibration:
                 - rx[solvable] * dy_dr[solvable]
             ) / det[solvable]
 
-            # Limit individual Newton jumps so a poor initializer cannot leap to
-            # a different angular branch.
             delta_r = np.clip(delta_r, -10.0, 10.0)
             delta_theta = np.clip(delta_theta, -30.0, 30.0)
             r[solvable] = np.clip(
@@ -401,9 +574,6 @@ class GridCalibration:
         )
         fallback = final_err > tolerance_px
 
-        # Generic least-squares is deliberately a fallback rather than the main
-        # path.  It makes edge cases robust while keeping bulk transformations
-        # fast enough for downstream star catalogs/tracks.
         for idx in np.flatnonzero(fallback):
             theta_seed = float(theta[idx])
 
@@ -452,6 +622,91 @@ class GridCalibration:
         theta_out = np.mod(theta, 360.0).reshape(original_shape)
         return _scalar_or_array(r_out), _scalar_or_array(theta_out)
 
+    def inverse_quality_on_points(
+        self,
+        *,
+        x: Any,
+        y: Any,
+        nominal_r_deg: Any,
+        nominal_theta_deg: Any,
+        max_nominal_r_deg: float = 70.0,
+    ) -> dict[str, float | None]:
+        """Evaluate global physical inverse residuals on labeled grid points."""
+        x_arr, y_arr, r_nom, theta_nom = np.broadcast_arrays(
+            np.asarray(x, dtype=float),
+            np.asarray(y, dtype=float),
+            np.asarray(nominal_r_deg, dtype=float),
+            np.asarray(nominal_theta_deg, dtype=float),
+        )
+        max_r = min(
+            float(max_nominal_r_deg),
+            float(self.calibrated_angular_range_deg[1]),
+        )
+        mask = (
+            np.isfinite(x_arr)
+            & np.isfinite(y_arr)
+            & np.isfinite(r_nom)
+            & np.isfinite(theta_nom)
+            & (r_nom <= max_r)
+        )
+        if not np.any(mask):
+            return {
+                "inverse_validation_max_r_deg": max_r,
+                "inverse_radial_robust_sigma_arcmin": None,
+                "inverse_radial_p95_abs_arcmin": None,
+                "inverse_cross_robust_sigma_arcmin": None,
+                "inverse_cross_p95_abs_arcmin": None,
+            }
+
+        r_rec, theta_rec = self.pixel_to_angle(
+            x_arr[mask], y_arr[mask], strict=False
+        )
+        r_rec = np.asarray(r_rec, dtype=float)
+        theta_rec = np.asarray(theta_rec, dtype=float)
+        r_ref = r_nom[mask]
+        theta_ref = theta_nom[mask]
+
+        valid = np.isfinite(r_rec) & np.isfinite(theta_rec)
+        if not np.any(valid):
+            return {
+                "inverse_validation_max_r_deg": max_r,
+                "inverse_radial_robust_sigma_arcmin": None,
+                "inverse_radial_p95_abs_arcmin": None,
+                "inverse_cross_robust_sigma_arcmin": None,
+                "inverse_cross_p95_abs_arcmin": None,
+            }
+
+        r_rec = r_rec[valid]
+        theta_rec = theta_rec[valid]
+        r_ref = r_ref[valid]
+        theta_ref = theta_ref[valid]
+
+        radial_arcmin = (r_rec - r_ref) * 60.0
+        delta_theta_rad = np.deg2rad(
+            _wrap_degrees(theta_rec - theta_ref)
+        )
+        cross_arcmin = np.rad2deg(
+            np.arcsin(
+                np.clip(
+                    np.sin(np.deg2rad(r_rec)) * np.sin(delta_theta_rad),
+                    -1.0,
+                    1.0,
+                )
+            )
+        ) * 60.0
+
+        return {
+            "inverse_validation_max_r_deg": max_r,
+            "inverse_radial_robust_sigma_arcmin": _robust_sigma(radial_arcmin),
+            "inverse_radial_p95_abs_arcmin": float(
+                np.percentile(np.abs(radial_arcmin), 95)
+            ),
+            "inverse_cross_robust_sigma_arcmin": _robust_sigma(cross_arcmin),
+            "inverse_cross_p95_abs_arcmin": float(
+                np.percentile(np.abs(cross_arcmin), 95)
+            ),
+        }
+
     def save(self, path: str | Path) -> Path:
         """Write this calibration as a plain-data, no-pickle ``.npz`` file."""
         path = Path(path)
@@ -460,14 +715,34 @@ class GridCalibration:
         np.savez_compressed(
             path,
             format=np.asarray(self.format),
-            version=np.asarray(self.version, dtype=np.int64),
-            image_coordinate_convention=np.asarray(self.image_coordinate_convention),
+            version=np.asarray(CALIBRATION_FORMAT_VERSION, dtype=np.int64),
+            image_coordinate_convention=np.asarray(
+                self.image_coordinate_convention
+            ),
             sensor_width_px=np.asarray(self.sensor_width_px, dtype=np.int64),
             sensor_height_px=np.asarray(self.sensor_height_px, dtype=np.int64),
             radial_degree=np.asarray(self.radial_degree, dtype=np.int64),
-            harmonic_radial_degree=np.asarray(self.harmonic_radial_degree, dtype=np.int64),
-            harmonic_order=np.asarray(self.harmonic_order, dtype=np.int64),
-            fit_constant_terms=np.asarray(self.fit_constant_terms, dtype=np.bool_),
+            radial_harmonic_radial_degree=np.asarray(
+                self.radial_harmonic_radial_degree, dtype=np.int64
+            ),
+            radial_harmonic_order=np.asarray(
+                self.radial_harmonic_order, dtype=np.int64
+            ),
+            tangential_harmonic_radial_degree=np.asarray(
+                self.tangential_harmonic_radial_degree, dtype=np.int64
+            ),
+            tangential_harmonic_order=np.asarray(
+                self.tangential_harmonic_order, dtype=np.int64
+            ),
+            fit_constant_terms=np.asarray(
+                self.fit_constant_terms, dtype=np.bool_
+            ),
+            axisymmetric_twist_kind=np.asarray(
+                self.axisymmetric_twist_kind
+            ),
+            axisymmetric_twist_scale_deg=np.asarray(
+                self.axisymmetric_twist_scale_deg, dtype=float
+            ),
             r_nom_max_deg=np.asarray(self.r_nom_max_deg, dtype=float),
             params_full=np.asarray(self.params_full, dtype=float),
             param_names=np.asarray(self.param_names),
@@ -488,7 +763,36 @@ class GridCalibration:
             n_inliers=np.asarray(q.n_inliers, dtype=np.int64),
             n_outliers=np.asarray(q.n_outliers, dtype=np.int64),
             calibrated_angular_range_deg=np.asarray(
-                self.calibrated_angular_range_deg,
+                self.calibrated_angular_range_deg, dtype=float
+            ),
+            inverse_validation_max_r_deg=np.asarray(
+                np.nan
+                if q.inverse_validation_max_r_deg is None
+                else q.inverse_validation_max_r_deg,
+                dtype=float,
+            ),
+            inverse_radial_robust_sigma_arcmin=np.asarray(
+                np.nan
+                if q.inverse_radial_robust_sigma_arcmin is None
+                else q.inverse_radial_robust_sigma_arcmin,
+                dtype=float,
+            ),
+            inverse_radial_p95_abs_arcmin=np.asarray(
+                np.nan
+                if q.inverse_radial_p95_abs_arcmin is None
+                else q.inverse_radial_p95_abs_arcmin,
+                dtype=float,
+            ),
+            inverse_cross_robust_sigma_arcmin=np.asarray(
+                np.nan
+                if q.inverse_cross_robust_sigma_arcmin is None
+                else q.inverse_cross_robust_sigma_arcmin,
+                dtype=float,
+            ),
+            inverse_cross_p95_abs_arcmin=np.asarray(
+                np.nan
+                if q.inverse_cross_p95_abs_arcmin is None
+                else q.inverse_cross_p95_abs_arcmin,
                 dtype=float,
             ),
         )
@@ -496,56 +800,152 @@ class GridCalibration:
 
     @classmethod
     def load(cls, path: str | Path) -> "GridCalibration":
-        """Load and validate a portable calibration with pickle disabled."""
+        """Load and validate a portable calibration with pickle disabled.
+
+        Version-1 artifacts are migrated in memory to the version-2 runtime
+        representation by assigning their shared harmonic settings to both
+        correction fields and disabling the axisymmetric twist.
+        """
         path = Path(path)
         with np.load(path, allow_pickle=False) as loaded:
-            missing = sorted(_REQUIRED_KEYS.difference(loaded.files))
+            if "version" not in loaded.files:
+                raise ValueError(
+                    f"Calibration artifact {path} is missing required key 'version'."
+                )
+            source_version = int(np.asarray(loaded["version"]).item())
+            if source_version == 1:
+                required = _REQUIRED_KEYS_V1
+            elif source_version == 2:
+                required = _REQUIRED_KEYS_V2
+            else:
+                raise ValueError(
+                    f"Unsupported calibration format version {source_version}; "
+                    "supported versions are 1 and 2."
+                )
+
+            missing = sorted(required.difference(loaded.files))
             if missing:
                 raise ValueError(
                     f"Calibration artifact {path} is missing required keys: {missing}."
                 )
 
             format_name = str(np.asarray(loaded["format"]).item())
-            version = int(np.asarray(loaded["version"]).item())
-            convention = str(np.asarray(loaded["image_coordinate_convention"]).item())
+            convention = str(
+                np.asarray(loaded["image_coordinate_convention"]).item()
+            )
+
+            if source_version == 1:
+                shared_m = int(
+                    np.asarray(loaded["harmonic_radial_degree"]).item()
+                )
+                shared_n = int(np.asarray(loaded["harmonic_order"]).item())
+                dr_m = dt_m = shared_m
+                dr_n = dt_n = shared_n
+                twist_kind = "none"
+                twist_scale_deg = 20.0
+                inverse_values = {
+                    "inverse_validation_max_r_deg": None,
+                    "inverse_radial_robust_sigma_arcmin": None,
+                    "inverse_radial_p95_abs_arcmin": None,
+                    "inverse_cross_robust_sigma_arcmin": None,
+                    "inverse_cross_p95_abs_arcmin": None,
+                }
+            else:
+                dr_m = int(
+                    np.asarray(loaded["radial_harmonic_radial_degree"]).item()
+                )
+                dr_n = int(
+                    np.asarray(loaded["radial_harmonic_order"]).item()
+                )
+                dt_m = int(
+                    np.asarray(
+                        loaded["tangential_harmonic_radial_degree"]
+                    ).item()
+                )
+                dt_n = int(
+                    np.asarray(loaded["tangential_harmonic_order"]).item()
+                )
+                twist_kind = str(
+                    np.asarray(loaded["axisymmetric_twist_kind"]).item()
+                )
+                twist_scale_deg = float(
+                    np.asarray(loaded["axisymmetric_twist_scale_deg"]).item()
+                )
+                inverse_values = {
+                    "inverse_validation_max_r_deg": _optional_float(
+                        loaded["inverse_validation_max_r_deg"]
+                    ),
+                    "inverse_radial_robust_sigma_arcmin": _optional_float(
+                        loaded["inverse_radial_robust_sigma_arcmin"]
+                    ),
+                    "inverse_radial_p95_abs_arcmin": _optional_float(
+                        loaded["inverse_radial_p95_abs_arcmin"]
+                    ),
+                    "inverse_cross_robust_sigma_arcmin": _optional_float(
+                        loaded["inverse_cross_robust_sigma_arcmin"]
+                    ),
+                    "inverse_cross_p95_abs_arcmin": _optional_float(
+                        loaded["inverse_cross_p95_abs_arcmin"]
+                    ),
+                }
 
             calibration = cls(
                 format=format_name,
-                version=version,
+                version=CALIBRATION_FORMAT_VERSION,
                 image_coordinate_convention=convention,
-                sensor_width_px=int(np.asarray(loaded["sensor_width_px"]).item()),
-                sensor_height_px=int(np.asarray(loaded["sensor_height_px"]).item()),
-                radial_degree=int(np.asarray(loaded["radial_degree"]).item()),
-                harmonic_radial_degree=int(
-                    np.asarray(loaded["harmonic_radial_degree"]).item()
+                sensor_width_px=int(
+                    np.asarray(loaded["sensor_width_px"]).item()
                 ),
-                harmonic_order=int(np.asarray(loaded["harmonic_order"]).item()),
+                sensor_height_px=int(
+                    np.asarray(loaded["sensor_height_px"]).item()
+                ),
+                radial_degree=int(
+                    np.asarray(loaded["radial_degree"]).item()
+                ),
+                radial_harmonic_radial_degree=dr_m,
+                radial_harmonic_order=dr_n,
+                tangential_harmonic_radial_degree=dt_m,
+                tangential_harmonic_order=dt_n,
                 fit_constant_terms=bool(
                     np.asarray(loaded["fit_constant_terms"]).item()
                 ),
-                r_nom_max_deg=float(np.asarray(loaded["r_nom_max_deg"]).item()),
+                axisymmetric_twist_kind=twist_kind,
+                axisymmetric_twist_scale_deg=twist_scale_deg,
+                r_nom_max_deg=float(
+                    np.asarray(loaded["r_nom_max_deg"]).item()
+                ),
                 params_full=np.asarray(loaded["params_full"], dtype=float),
                 fit_quality=CalibrationFitQuality(
                     rms_px=float(np.asarray(loaded["fit_rms_px"]).item()),
-                    median_px=float(np.asarray(loaded["fit_median_px"]).item()),
+                    median_px=float(
+                        np.asarray(loaded["fit_median_px"]).item()
+                    ),
                     p95_px=float(np.asarray(loaded["fit_p95_px"]).item()),
-                    max_abs_px=float(np.asarray(loaded["fit_max_abs_px"]).item()),
-                    inlier_rms_px=_optional_float(loaded["fit_inlier_rms_px"]),
+                    max_abs_px=float(
+                        np.asarray(loaded["fit_max_abs_px"]).item()
+                    ),
+                    inlier_rms_px=_optional_float(
+                        loaded["fit_inlier_rms_px"]
+                    ),
                     outlier_threshold_px=_optional_float(
                         loaded["outlier_threshold_px"]
                     ),
                     n_inliers=int(np.asarray(loaded["n_inliers"]).item()),
                     n_outliers=int(np.asarray(loaded["n_outliers"]).item()),
+                    **inverse_values,
                 ),
                 calibrated_angular_range_deg=tuple(
-                    np.asarray(loaded["calibrated_angular_range_deg"], dtype=float)
+                    np.asarray(
+                        loaded["calibrated_angular_range_deg"], dtype=float
+                    )
                     .reshape(2)
                     .tolist()
                 ),
             )
 
             stored_names = tuple(
-                str(name) for name in np.asarray(loaded["param_names"]).tolist()
+                str(name)
+                for name in np.asarray(loaded["param_names"]).tolist()
             )
             if stored_names != calibration.param_names:
                 raise ValueError(

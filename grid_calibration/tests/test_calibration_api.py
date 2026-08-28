@@ -18,26 +18,31 @@ from grid_calibration import (
 def _harmonic_calibration() -> GridCalibration:
     rng = np.random.default_rng(7)
     radial_degree = 3
-    harmonic_radial_degree = 2
-    harmonic_order = 3
+    dr_m, dr_n = 2, 3
+    dt_m, dt_n = 3, 4
 
-    # With fit_constant_terms=False there are:
-    # 3 radial powers + 3 center/rotation terms +
-    # 2 axes * 3 radial powers * 3 harmonics * (cos, sin).
-    n_params = 3 + radial_degree + 2 * 3 * 3 * 2
+    n_dr = (dr_m + 1) * dr_n * 2
+    n_dtan = (dt_m + 1) * dt_n * 2
+    n_params = 3 + radial_degree + n_dr + n_dtan + 1
     params = np.zeros(n_params, dtype=float)
     params[: 3 + radial_degree] = [510.0, 493.0, 12.5, 325.0, 7.0, -1.5]
-    params[3 + radial_degree :] = rng.normal(
-        0.0, 0.25, n_params - (3 + radial_degree)
+    cursor = 3 + radial_degree
+    params[cursor : cursor + n_dr + n_dtan] = rng.normal(
+        0.0, 0.15, n_dr + n_dtan
     )
+    params[-1] = -0.45
 
     return GridCalibration(
         sensor_width_px=1024,
         sensor_height_px=1000,
         radial_degree=radial_degree,
-        harmonic_radial_degree=harmonic_radial_degree,
-        harmonic_order=harmonic_order,
+        radial_harmonic_radial_degree=dr_m,
+        radial_harmonic_order=dr_n,
+        tangential_harmonic_radial_degree=dt_m,
+        tangential_harmonic_order=dt_n,
         fit_constant_terms=False,
+        axisymmetric_twist_kind="tanh",
+        axisymmetric_twist_scale_deg=20.0,
         r_nom_max_deg=100.0,
         params_full=params,
         fit_quality=CalibrationFitQuality(
@@ -49,6 +54,11 @@ def _harmonic_calibration() -> GridCalibration:
             outlier_threshold_px=1.5,
             n_inliers=200,
             n_outliers=4,
+            inverse_validation_max_r_deg=70.0,
+            inverse_radial_robust_sigma_arcmin=0.8,
+            inverse_radial_p95_abs_arcmin=1.6,
+            inverse_cross_robust_sigma_arcmin=0.7,
+            inverse_cross_p95_abs_arcmin=1.5,
         ),
         calibrated_angular_range_deg=(5.0, 100.0),
     )
@@ -92,13 +102,15 @@ def test_portable_calibration_round_trip_requires_no_pickle(tmp_path: Path) -> N
     calibration = _harmonic_calibration()
     path = calibration.save(tmp_path / "portable_calibration.npz")
 
-    # The artifact must remain readable under allow_pickle=False.  Object arrays
-    # would fail here and would violate the portability contract.
     with np.load(path, allow_pickle=False) as loaded:
         assert str(loaded["format"].item()) == "grid-calibration"
-        assert int(loaded["version"].item()) == 1
+        assert int(loaded["version"].item()) == 2
         assert int(loaded["sensor_width_px"].item()) == 1024
         assert int(loaded["sensor_height_px"].item()) == 1000
+        assert int(loaded["radial_harmonic_radial_degree"].item()) == 2
+        assert int(loaded["tangential_harmonic_order"].item()) == 4
+        assert str(loaded["axisymmetric_twist_kind"].item()) == "tanh"
+        assert float(loaded["axisymmetric_twist_scale_deg"].item()) == 20.0
         assert loaded["params_full"].dtype.kind == "f"
         assert loaded["param_names"].dtype.kind in {"U", "S"}
         assert loaded["calibrated_angular_range_deg"].tolist() == [5.0, 100.0]
@@ -109,6 +121,59 @@ def test_portable_calibration_round_trip_requires_no_pickle(tmp_path: Path) -> N
     assert recovered.param_names == calibration.param_names
     np.testing.assert_allclose(recovered.params_full, calibration.params_full)
     assert recovered.fit_quality == calibration.fit_quality
+
+
+def test_version1_portable_artifact_is_migrated_on_load(tmp_path: Path) -> None:
+    radial_degree = 3
+    harmonic_m = 2
+    harmonic_n = 3
+    n_field = (harmonic_m + 1) * harmonic_n * 2
+    params = np.zeros(3 + radial_degree + 2 * n_field)
+    params[: 3 + radial_degree] = [500.0, 500.0, 10.0, 320.0, 6.0, -1.0]
+
+    names = ["cx", "cy", "theta0_deg", "k1", "k2", "k3"]
+    for axis in ("dr", "dtan"):
+        for m in range(harmonic_m + 1):
+            for n in range(1, harmonic_n + 1):
+                names += [f"{axis}_m{m}_c{n}", f"{axis}_m{m}_s{n}"]
+
+    path = tmp_path / "legacy_v1.npz"
+    np.savez_compressed(
+        path,
+        format=np.asarray("grid-calibration"),
+        version=np.asarray(1, dtype=np.int64),
+        image_coordinate_convention=np.asarray(
+            "x=column,y=row;origin=upper-left;+x=right;+y=down;"
+            "pixel-centers-at-integer-coordinates"
+        ),
+        sensor_width_px=np.asarray(1000, dtype=np.int64),
+        sensor_height_px=np.asarray(1000, dtype=np.int64),
+        radial_degree=np.asarray(radial_degree, dtype=np.int64),
+        harmonic_radial_degree=np.asarray(harmonic_m, dtype=np.int64),
+        harmonic_order=np.asarray(harmonic_n, dtype=np.int64),
+        fit_constant_terms=np.asarray(False, dtype=np.bool_),
+        r_nom_max_deg=np.asarray(90.0),
+        params_full=params,
+        param_names=np.asarray(names),
+        fit_rms_px=np.asarray(1.0),
+        fit_median_px=np.asarray(0.8),
+        fit_p95_px=np.asarray(1.5),
+        fit_max_abs_px=np.asarray(2.0),
+        fit_inlier_rms_px=np.asarray(np.nan),
+        outlier_threshold_px=np.asarray(np.nan),
+        n_inliers=np.asarray(100, dtype=np.int64),
+        n_outliers=np.asarray(0, dtype=np.int64),
+        calibrated_angular_range_deg=np.asarray([2.5, 90.0]),
+    )
+
+    calibration = GridCalibration.load(path)
+    assert calibration.version == 2
+    assert calibration.radial_harmonic_radial_degree == harmonic_m
+    assert calibration.tangential_harmonic_radial_degree == harmonic_m
+    assert calibration.radial_harmonic_order == harmonic_n
+    assert calibration.tangential_harmonic_order == harmonic_n
+    assert calibration.axisymmetric_twist_kind == "none"
+    assert calibration.fit_quality.inverse_cross_p95_abs_arcmin is None
 
 
 def test_from_fit_exports_inlier_angular_range_and_model_configuration() -> None:
@@ -127,13 +192,31 @@ def test_from_fit_exports_inlier_angular_range_and_model_configuration() -> None
     model = SimpleNamespace(
         config=SimpleNamespace(
             radial_degree=calibration.radial_degree,
-            harmonic_radial_degree=calibration.harmonic_radial_degree,
-            harmonic_order=calibration.harmonic_order,
+            radial_harmonic_radial_degree=(
+                calibration.radial_harmonic_radial_degree
+            ),
+            radial_harmonic_order=calibration.radial_harmonic_order,
+            tangential_harmonic_radial_degree=(
+                calibration.tangential_harmonic_radial_degree
+            ),
+            tangential_harmonic_order=calibration.tangential_harmonic_order,
             fit_constant_terms=calibration.fit_constant_terms,
+            axisymmetric_twist_kind=calibration.axisymmetric_twist_kind,
+            axisymmetric_twist_scale_deg=(
+                calibration.axisymmetric_twist_scale_deg
+            ),
         ),
         r_nom_max_deg=calibration.r_nom_max_deg,
     )
-    data = SimpleNamespace(r_nom_deg=np.array([2.5, 5.0, 95.0, 100.0]))
+    r_nom = np.array([2.5, 5.0, 95.0, 100.0])
+    theta_nom = np.array([0.0, 90.0, 180.0, 270.0])
+    x, y = calibration.angle_to_pixel(r_nom, theta_nom)
+    data = SimpleNamespace(
+        r_nom_deg=r_nom,
+        theta_nom_deg=theta_nom,
+        x=np.asarray(x),
+        y=np.asarray(y),
+    )
 
     exported = GridCalibration.from_fit(
         fit_result=fit_result,
@@ -147,6 +230,10 @@ def test_from_fit_exports_inlier_angular_range_and_model_configuration() -> None
     assert exported.sensor_width_px == 1024
     assert exported.sensor_height_px == 1000
     assert exported.fit_quality.inlier_rms_px == pytest.approx(0.32)
+    assert exported.fit_quality.inverse_validation_max_r_deg == pytest.approx(70.0)
+    assert exported.fit_quality.inverse_cross_p95_abs_arcmin == pytest.approx(
+        0.0, abs=1e-5
+    )
 
 
 def test_pixel_to_angle_rejects_pixels_outside_calibrated_radial_footprint() -> None:

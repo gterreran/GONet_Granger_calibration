@@ -44,16 +44,27 @@ def fit_model(
         logger.info(f"  {name:<6s} = {p0[i]:.6e}")
 
     logger.info("\nStage 1: fitting symmetric near-equidistant model...")
+
+    # Optimize only the parameters that actually participate in the symmetric
+    # stage. The previous implementation passed the entire harmonic parameter
+    # vector even though those coefficients were zeroed inside the residual
+    # function. With the validated 159-parameter production model that creates
+    # a large, unnecessary rank-deficient Jacobian.
+    def symmetric_residuals(p_sym_short: np.ndarray) -> np.ndarray:
+        p = np.zeros(model.n_total, dtype=float)
+        p[: model.n_sym] = p_sym_short
+        return model.residuals(p, data, include_field=False)
+
     res_sym = least_squares(
-        fun=lambda p: model.residuals(p, data, include_field=False),
-        x0=p0,
+        fun=symmetric_residuals,
+        x0=p0[: model.n_sym],
         loss="soft_l1",
         f_scale=2.0,
         max_nfev=max_nfev,
         verbose=2 if logger.isEnabledFor(logging.DEBUG) else 0,
     )
-    p_sym = np.array(res_sym.x, copy=True)
-    p_sym[model.n_sym :] = 0.0
+    p_sym = np.zeros(model.n_total, dtype=float)
+    p_sym[: model.n_sym] = np.asarray(res_sym.x, dtype=float)
     pred_sym = add_center_to_prediction(model.predict(p_sym, data), p_sym)
     summary_sym, _ = summarize_fit(data, pred_sym)
     print_fit_report("symmetric model", summary_sym)
