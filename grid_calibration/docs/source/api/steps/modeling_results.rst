@@ -50,9 +50,10 @@ Processing Package
 ------------------
 
 .. automodule:: grid_calibration.gui.steps.modeling_results.processing
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+The processing package re-exports several objects from the concrete modules
+below.  The members are documented on those module sections rather than a
+second time here, which keeps the API inventory unambiguous.
 
 Config
 ^^^^^^

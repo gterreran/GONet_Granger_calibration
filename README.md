@@ -62,7 +62,9 @@ python -m grid_calibration path/to/images/*.jpg --outdir grid_calibration_output
 The final modeling step keeps the existing ``*_modeling_results.npz`` workflow
 product and also writes a smaller ``*_calibration.npz`` interchange artifact.
 The latter contains only plain NumPy-compatible data and can be loaded with
-``allow_pickle=False``.
+``allow_pickle=False``. Artifact format version 2 records the independent radial
+and tangential harmonic configuration plus the fitted axisymmetric tanh twist;
+version-1 artifacts remain readable through ``load_calibration()``.
 
 ```python
 from grid_calibration import load_calibration

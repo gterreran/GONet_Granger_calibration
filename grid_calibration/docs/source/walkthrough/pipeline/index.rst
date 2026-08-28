@@ -37,6 +37,11 @@ The complete workflow is:
 The workflow gradually transforms raw calibration images into a fully fitted
 fisheye distortion model.
 
+The final :doc:`modeling_results` page describes how that fit is produced and
+validated.  Readers interested in the geometry and mathematics of the final
+calibration can continue from there to the dedicated
+:doc:`../../calibration/index` section.
+
 Design Philosophy
 -----------------
 
