@@ -12,7 +12,7 @@ from ...workflow import PipelineStepSpec, ProductKind, ProductIO
 from .keys import STEP_KEY, REQUIRED_ARRAY_KEYS, OPTIONAL_ARRAY_KEYS, DATA_KEY, PARAMS_KEY
 from typing import Any
 from ...workflow.io_helpers import object_array, maybe_item
-from .params import DEFAULT_PARAMETERS
+from .params import DEFAULT_PARAMETERS, normalize_parameters
 
 
 
@@ -70,8 +70,10 @@ def decode_product(loaded: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         DATA_KEY: maybe_item(loaded[DATA_KEY]),
-        PARAMS_KEY: maybe_item(
-            loaded.get(PARAMS_KEY, object_array(DEFAULT_PARAMETERS.copy()))
+        PARAMS_KEY: normalize_parameters(
+            maybe_item(
+                loaded.get(PARAMS_KEY, object_array(DEFAULT_PARAMETERS.copy()))
+            )
         ),
     }
 

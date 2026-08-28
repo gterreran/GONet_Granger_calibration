@@ -153,9 +153,23 @@ Documentation Structure
    concepts
    gui_interface
    products
-   troubleshooting
-   advanced
    pipeline/index
+
+
+Modeling and calibration theory
+-------------------------------
+
+The walkthrough explains how to run and inspect the final modeling step.  Two
+additional pages provide progressively deeper detail:
+
+* :doc:`pipeline/modeling_results` explains the controls, products, report, and
+  practical interpretation of the final workflow stage.
+* :doc:`../calibration/index` is the technical entry point for the distortion
+  model itself, including a visual component-by-component explanation and the
+  mathematical formulation.
+
+These pages are optional for routine operation, but they are the recommended
+starting point when interpreting calibration residuals or modifying the model.
 
 Typical Workflow Duration
 -------------------------

@@ -101,6 +101,38 @@ The measured fisheye image introduces distortions caused by:
 The modeling stage estimates a smooth transformation capable of reproducing the
 observed projection geometry.
 
+Calibration Reference and Limitations
+-------------------------------------
+
+The nominal geometry used by this project comes from the polar calibration grid
+projected onto the dome of the **Grainger Sky Theater at the Adler
+Planetarium**.  During fitting, those nominal ring radii and spoke angles are
+treated as the angular reference.
+
+This is a practical and densely sampled reference, not a perfect external
+metrological standard.  Small projector misalignments, projection geometry,
+local dome imperfections, or other repeatable departures from the ideal pattern
+can therefore be absorbed by the fitted model.  In that situation the model is
+calibrating the camera **relative to the realized projected grid**, not the
+camera optics in isolation.
+
+This distinction matters because the current model is intentionally flexible.
+A repeatable imperfection in the projected pattern can be represented just as
+readily as a repeatable distortion in the camera.  Any such reference-grid
+systematic can consequently propagate into the exported pixel-to-angle
+calibration.
+
+Independent star-tracking tests have already provided evidence that the
+projected grid is not a perfectly ideal absolute reference.  Stars are an
+attractive independent angular standard, but obtaining dense, unobstructed
+stellar sampling over the complete fisheye field, particularly toward the
+horizon, is difficult in practice.  A future hybrid approach may therefore be
+strongest: use the projected grid for dense full-field constraints and stars
+for independent absolute validation and additional geometric anchoring.
+
+See :doc:`../../calibration/index` for the technical model documentation and a
+more detailed discussion of what the fitted coefficients do and do not mean.
+
 High-Level Strategy
 -------------------
 
@@ -153,25 +185,29 @@ increase the risk of overfitting.
 Harmonic Distortion Terms
 -------------------------
 
-Real optical systems are rarely perfectly radially symmetric.
+Real optical systems are rarely perfectly radially symmetric. The current model
+therefore fits independent radial and tangential harmonic fields. The GUI
+exposes four complexity controls:
 
-To capture asymmetric distortions, the workflow includes harmonic perturbation
-terms.
+``dr radial degree``
+    Radial polynomial degree of the radial correction field.
 
-Two parameters control this behavior:
+``dr harmonic order``
+    Maximum Fourier order of the radial correction field.
 
-``Harmonic radial degree``
-    Controls the radial complexity of the harmonic corrections.
+``dtan radial degree``
+    Radial polynomial degree of the tangential correction field.
 
-``Harmonic order``
-    Controls the angular harmonic order included in the model.
+``dtan harmonic order``
+    Maximum Fourier order of the tangential correction field.
 
-These terms allow the fit to model effects such as:
+The production defaults are ``dr M4/N7`` and ``dtan M4/N8``. They are separate
+because geometric cross-validation showed that the two physical residual
+components prefer slightly different complexity.
 
-- asymmetric lens distortions,
-- decentering,
-- optical tilt,
-- mechanical misalignment.
+The model also includes a global radius-dependent angular twist
+``A*tanh(r/tau)``. ``Twist scale (deg)`` controls the fixed scale ``tau``; the
+default is 20 degrees and the amplitude ``A`` is fitted.
 
 Outlier Rejection
 -----------------
@@ -248,11 +284,12 @@ checkbox.
 
 The report includes:
 
-- residual statistics,
-- parameter summaries,
-- inlier diagnostics,
-- distortion visualizations,
-- and fit-quality metrics.
+- forward residual statistics and maps,
+- parameter summaries and inlier diagnostics,
+- radial/tangential distortion visualizations,
+- inverse angular residual statistics,
+- ring and spoke coherent-structure summaries,
+- and the fitted axisymmetric twist curve.
 
 The callbacks explicitly invoke the reporting pipeline only when the PDF option
 is enabled. 
@@ -332,23 +369,26 @@ the calibration:
     r_deg, theta_deg = calibration.pixel_to_angle(x, y)
 
 The inverse is solved numerically against the complete fitted forward model,
-including radial and tangential harmonic corrections. By default it refuses to
+including the independent radial/tangential harmonic corrections and the
+axisymmetric tanh twist. By default it refuses to
 silently extrapolate beyond the calibrated outer angular radius; pass
 ``extrapolate=True`` only when that behavior is intentional.
 
 Additional Documentation
 ------------------------
 
-A more detailed mathematical description of the distortion model is available
-in:
+The dedicated :doc:`../../calibration/index` section collects the technical
+model documentation:
 
-.. toctree::
-   :maxdepth: 1
+* :doc:`../../calibration/model_components` gives a visual, geometric
+  explanation of each model component and the 159-parameter default.
+* :doc:`../../calibration/distortion_model` gives the mathematical
+  parameterization, fitting procedure, regularization, validation strategy,
+  and exported-product details.
 
-   ../../calibration/distortion_model
-
-This supplemental document focuses specifically on the mathematical formulation
-of the fisheye distortion parameterization and fitting methodology.
+These pages are optional for routine calibration operation, but they are the
+recommended reference when interpreting structured residuals or changing the
+model.
 
 End of the Pipeline
 -------------------
